@@ -1,5 +1,6 @@
 # modify this for your own path
-SCRIPT_PATH = '/Users/jacobgollub/Desktop/tennis_probs_live/match_data'
+# SCRIPT_PATH = '/Users/jacobgollub/Desktop/tennis_probs_live/match_data'
+PROBS_PATH = '/Users/jacobgollub/Desktop/github_repos/tennis_probs_live/sackmann'
 TOUR = 'atp'
 START_YEAR = 2015
 CURRENT_YEAR = 2018
@@ -8,7 +9,8 @@ RET_STRINGS = ('ABN','DEF','In Progress','RET','W/O',' RET',' W/O','nan','walkov
 ABD_STRINGS = ('abandoned','ABN','ABD','DEF','def','unfinished','Walkover')
 
 import sys
-sys.path.insert(0,SCRIPT_PATH)
+# sys.path.insert(0,SCRIPT_PATH)
+sys.path.insert(0,PROBS_PATH)
 from helper_functions import *
 from data_functions import *
 pd.options.mode.chained_assignment = None

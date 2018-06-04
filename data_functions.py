@@ -1,17 +1,26 @@
+PROBS_PATH = '/Users/jacobgollub/Desktop/github_repos/tennis_probs_live/sackmann'
+
 # see if it works with this commented out???
+import sys
+sys.path.insert(0,PROBS_PATH)
 import numpy as np
 import pandas as pd
 import elo_538 as elo
 from helper_functions import adj_stats_52,stats_52,tny_52,normalize_name
 from sklearn import linear_model
-import re
-import datetime
+import re, datetime
+import tennisGameProbability
+import tennisMatchProbability
+import tennisSetProbability
+import tennisTiebreakProbability
+from tennisMatchProbability import matchProb
 
 # TO DO: add switches or global indicators for surface stats
 # TO DO: look into issue of inconsistent tournament naming 
 # (he changed the tny_id naming scheme from 2015 to 2016...)
-# TO DO: create a consistent naming pattern for columns of s/r variations
-# (eg s, then kls, then adj, then sf, then JS)
+# TO DO: create a consistent naming pattern for columns of s/r variations ... DONE!!!
+
+# TO DO: what is the difference between 's_pct' and '52_s_pct'???
 
 
 '''
@@ -55,6 +64,7 @@ def format_match_df(df,tour,ret_strings=[],abd_strings=[]):
     df['w_swon'], df['l_swon'] = df['w_1stWon']+df['w_2ndWon'], df['l_1stWon']+df['l_2ndWon']
     df['w_rwon'], df['l_rwon'] = df['l_svpt']-df['l_swon'], df['w_svpt']-df['w_swon']
     df['w_rpt'], df['l_rpt'] = df['l_svpt'], df['w_svpt']
+    df.drop(['w_1stWon','w_2ndWon','l_1stWon','l_2ndWon'], axis=1, inplace=True)
 
     # get rid of leading 0s in tny_id
     df['tny_id'] = ['-'.join(t.split('-')[:-1] + [t.split('-')[-1][1:]]) \
@@ -83,6 +93,9 @@ def change_labels(df, cols):
         df[label+'_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_rwon']/df[label+'_52_rpt'])]
         # df[label+'_sf_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_swon']/df[label+'_sf_52_svpt'])]
         # df[label+'_sf_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_rwon']/df[label+'_sf_52_rpt'])]
+
+    for label in ['w', 'l']:
+        df.drop([label + col for col in cols], axis=1, inplace=True)
 
     df['tny_name'] = [s if s==s else 'Davis Cup' for s in df['tny_name']]
     return df
@@ -165,12 +178,20 @@ def generate_stats(df, start_ind):
 add s/r pct columns, replacing nan with overall avg
 '''
 def generate_sr_pct(df):
-    p_hat = np.sum([df['p0_52_swon'],df['p1_52_swon']])/np.sum([df['p0_52_svpt'],df['p1_52_svpt']])
+    p_hat = np.sum([df['p0_52_swon'],df['p1_52_swon']])
+    p_hat = p_hat/np.sum([df['p0_52_svpt'],df['p1_52_svpt']])
     for label in ['p0','p1']:
-        df[label+'_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_swon']/df[label+'_52_svpt'])]
-        df[label+'_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_rwon']/df[label+'_52_rpt'])]
+        # df[label+'_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_swon']/df[label+'_52_svpt'])]
+        # df[label+'_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_rwon']/df[label+'_52_rpt'])]
+        df[label+'_s_pct'] = np.nan_to_num(df[label+'_52_swon']/df[label+'_52_svpt'])
+        df[label+'_r_pct'] = np.nan_to_num(df[label+'_52_rwon']/df[label+'_52_rpt'])
+        df[label+'_s_pct'] = df[label+'_s_pct'] + (p_hat) * (df[label+'_s_pct'] == 0)
+        df[label+'_r_pct'] = df[label+'_r_pct'] + (1-p_hat)*(df[label+'_r_pct'] == 0)
         # df[label+'_sf_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_swon']/df[label+'_sf_52_svpt'])]
         # df[label+'_sf_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_rwon']/df[label+'_sf_52_rpt'])]
+        
+        # finally, generate the observed service percentages in each match
+        df[label+'_s_pct_obsv'] = np.nan_to_num(df[label+'_swon']/df[label+'_svpt'])
     return df
 
 def finalize_df(df):
@@ -181,31 +202,32 @@ def finalize_df(df):
     df['p1_s_kls'] = df['tny_stats']+(df['p1_s_pct']-df['avg_52_s']) - (df['p0_r_pct']-df['avg_52_r'])
     df['p0_s_kls_JS'] = df['tny_stats']+(df['p0_s_pct_JS']-df['avg_52_s']) - (df['p1_r_pct_JS']-df['avg_52_r'])
     df['p1_s_kls_JS'] = df['tny_stats']+(df['p1_s_pct_JS']-df['avg_52_s']) - (df['p0_r_pct_JS']-df['avg_52_r'])
-    df['p0_s_sf_kls'] = df['tny_stats']+(df['p0_sf_s_pct']-df['sf_avg_52_s']) - (df['p1_sf_r_pct']-df['sf_avg_52_r'])
-    df['p1_s_sf_kls'] = df['tny_stats']+(df['p1_sf_s_pct']-df['sf_avg_52_s']) - (df['p0_sf_r_pct']-df['sf_avg_52_r'])
-    df['p0_s_sf_kls_JS'] = df['tny_stats']+(df['p0_sf_s_pct_JS']-df['sf_avg_52_s']) - (df['p1_sf_r_pct_JS']-df['sf_avg_52_r'])
-    df['p1_s_sf_kls_JS'] = df['tny_stats']+(df['p1_sf_s_pct_JS']-df['sf_avg_52_s']) - (df['p0_sf_r_pct_JS']-df['sf_avg_52_r'])
-    df['p0_s_kls_adj'] = df['tny_stats']+(df['p0_52_s_adj']) - (df['p1_52_r_adj'])
-    df['p1_s_kls_adj'] = df['tny_stats']+(df['p1_52_s_adj']) - (df['p0_52_r_adj'])
-    df['p0_s_kls_adj_JS'] = df['tny_stats']+(df['p0_52_s_adj_JS']) - (df['p1_52_r_adj_JS'])
-    df['p1_s_kls_adj_JS'] = df['tny_stats']+(df['p1_52_s_adj_JS']) - (df['p0_52_r_adj_JS'])
+    
+    # df['p0_s_sf_kls'] = df['tny_stats']+(df['p0_sf_s_pct']-df['sf_avg_52_s']) - (df['p1_sf_r_pct']-df['sf_avg_52_r'])
+    # df['p1_s_sf_kls'] = df['tny_stats']+(df['p1_sf_s_pct']-df['sf_avg_52_s']) - (df['p0_sf_r_pct']-df['sf_avg_52_r'])
+    # df['p0_s_sf_kls_JS'] = df['tny_stats']+(df['p0_sf_s_pct_JS']-df['sf_avg_52_s']) - (df['p1_sf_r_pct_JS']-df['sf_avg_52_r'])
+    # df['p1_s_sf_kls_JS'] = df['tny_stats']+(df['p1_sf_s_pct_JS']-df['sf_avg_52_s']) - (df['p0_sf_r_pct_JS']-df['sf_avg_52_r'])
+    df['p0_s_adj_kls'] = df['tny_stats']+(df['p0_52_s_adj']) - (df['p1_52_r_adj'])
+    df['p1_s_adj_kls'] = df['tny_stats']+(df['p1_52_s_adj']) - (df['p0_52_r_adj'])
+    df['p0_s_adj_kls_JS'] = df['tny_stats']+(df['p0_52_s_adj_JS']) - (df['p1_52_r_adj_JS'])
+    df['p1_s_adj_kls_JS'] = df['tny_stats']+(df['p1_52_s_adj_JS']) - (df['p0_52_r_adj_JS'])
 
     # generate match probabilities and z-scores for Klaassen method, with and w/o JS estimators
     df['match_prob_kls'] = [matchProb(row['p0_s_kls'],1-row['p1_s_kls']) for i,row in df.iterrows()]
     df['match_prob_kls_JS'] = [matchProb(row['p0_s_kls_JS'],1-row['p1_s_kls_JS']) for i,row in df.iterrows()]
-    df['match_prob_sf_kls'] = [matchProb(row['p0_sf_s_kls'],1-row['p1_sf_s_kls']) for i,row in df.iterrows()]
-    df['match_prob_sf_kls_JS'] = [matchProb(row['p0_sf_s_kls_JS'],1-row['p1_sf_s_kls_JS']) for i,row in df.iterrows()]
-    df['match_prob_adj_kls'] = [matchProb(row['p0_s_kls_adj'],1-row['p1_s_kls_adj']) for i,row in df.iterrows()]
-    df['match_prob_adj_kls_JS'] = [matchProb(row['p0_s_kls_adj_JS'],1-row['p1_s_kls_adj_JS']) for i,row in df.iterrows()]
+    # df['match_prob_sf_kls'] = [matchProb(row['p0_s_sf_kls'],1-row['p1_s_sf_kls']) for i,row in df.iterrows()]
+    # df['match_prob_sf_kls_JS'] = [matchProb(row['p0_s_sf_kls_JS'],1-row['p1_s_sf_kls_JS']) for i,row in df.iterrows()]
+    df['match_prob_adj_kls'] = [matchProb(row['p0_s_adj_kls'],1-row['p1_s_adj_kls']) for i,row in df.iterrows()]
+    df['match_prob_adj_kls_JS'] = [matchProb(row['p0_s_adj_kls_JS'],1-row['p1_s_adj_kls_JS']) for i,row in df.iterrows()]
 
     # generate win probabilities from elo differences
-    df['elo_prob'] = [(1+10**(diff/-400.))**-1 for diff in df['elo_diff']]
-    df['elo_prob_538'] = [(1+10**(diff/-400.))**-1 for diff in df['elo_diff_538']]
-    df['sf_elo_prob'] = [(1+10**(diff/-400.))**-1 for diff in df['sf_elo_diff']]
-    df['sf_elo_prob_538'] = [(1+10**(diff/-400.))**-1 for diff in df['sf_elo_diff_538']]
+    df['elo_prob'] = (1+10**(df['elo_diff']/-400.))**-1
+    # df['elo_prob_538'] = (1+10**(df['elo_diff_538']/-400.))**-1
+    # df['sf_elo_prob'] = [(1+10**(diff/-400.))**-1 for diff in df['sf_elo_diff']]
+    # df['sf_elo_prob_538'] = [(1+10**(diff/-400.))**-1 for diff in df['sf_elo_diff_538']]
 
     # elo-induced serve percentages
-    # df = generate_elo_induced_s(df, 'elo',start_ind=0)
+    df = generate_elo_induced_s(df, 'elo',start_ind=0)
     # df = generate_elo_induced_s(df, 'logit_elo_538',start_ind=0)
     return df
 
@@ -217,7 +239,7 @@ returns two dataframes
 def generate_dfs(df, counts_i, start_ind):
     active_df, df = generate_elo(df, counts_i)
     df = generate_stats(df, start_ind) # 52, adj, tny, etc.
-    # df = finalize_df(df)
+    df = finalize_df(df)
     return active_df, df
 
 '''
