@@ -2,9 +2,9 @@
 # SCRIPT_PATH = '/Users/jacobgollub/Desktop/tennis_probs_live/match_data'
 PROBS_PATH = '/Users/jacobgollub/Desktop/github_repos/tennis_probs_live/sackmann'
 TOUR = 'atp'
-START_YEAR = 2015
+START_YEAR = 2010
 CURRENT_YEAR = 2018
-DATE = '5_30_{}'.format(CURRENT_YEAR)
+DATE = '6_29_{}'.format(CURRENT_YEAR)
 RET_STRINGS = ('ABN','DEF','In Progress','RET','W/O',' RET',' W/O','nan','walkover')
 ABD_STRINGS = ('abandoned','ABN','ABD','DEF','def','unfinished','Walkover')
 

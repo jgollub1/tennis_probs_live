@@ -22,6 +22,12 @@ from tennisMatchProbability import matchProb
 
 # TO DO: what is the difference between 's_pct' and '52_s_pct'???
 
+# TO DO: make sure to start at an earlier year when producing adj stats!! (it's like elo...)
+
+# TO DO: modify get_current_elo/52_stats() to get from label p0/p1...
+
+# TO DO: how did kovalchik calculate RMSE in her paper??
+
 
 '''
 concatenate original match dataframes from years 
@@ -105,10 +111,9 @@ from start_ind (a year before start_year), collect cumulative
 12-month s/r stats prior to each match
 '''
 def get_current_52_stats(df, start_ind):
-    # start_ind = df[df['match_year']>=current_year-1].index[0]
     players_stats = {}
     active_players = {}
-    w_l = ['w', 'l']
+    w_l = ['p0', 'p1']
     start_date = (df['match_year'][start_ind],df['match_month'][start_ind])
     avg_stats = stats_52(start_date)
     avg_stats.update(start_date,(6.4,10,3.6,10)) # set as prior so first row is not nan
@@ -200,25 +205,25 @@ def finalize_df(df):
     df['tny_stats'] = [df['avg_52_s'][i] if df['tny_stats'][i]==0 else df['tny_stats'][i] for i in xrange(len(df))]
     df['p0_s_kls'] = df['tny_stats']+(df['p0_s_pct']-df['avg_52_s']) - (df['p1_r_pct']-df['avg_52_r'])
     df['p1_s_kls'] = df['tny_stats']+(df['p1_s_pct']-df['avg_52_s']) - (df['p0_r_pct']-df['avg_52_r'])
-    df['p0_s_kls_JS'] = df['tny_stats']+(df['p0_s_pct_JS']-df['avg_52_s']) - (df['p1_r_pct_JS']-df['avg_52_r'])
-    df['p1_s_kls_JS'] = df['tny_stats']+(df['p1_s_pct_JS']-df['avg_52_s']) - (df['p0_r_pct_JS']-df['avg_52_r'])
+    df['p0_s_kls_EM'] = df['tny_stats']+(df['p0_s_pct_EM']-df['avg_52_s']) - (df['p1_r_pct_EM']-df['avg_52_r'])
+    df['p1_s_kls_EM'] = df['tny_stats']+(df['p1_s_pct_EM']-df['avg_52_s']) - (df['p0_r_pct_EM']-df['avg_52_r'])
     
     # df['p0_s_sf_kls'] = df['tny_stats']+(df['p0_sf_s_pct']-df['sf_avg_52_s']) - (df['p1_sf_r_pct']-df['sf_avg_52_r'])
     # df['p1_s_sf_kls'] = df['tny_stats']+(df['p1_sf_s_pct']-df['sf_avg_52_s']) - (df['p0_sf_r_pct']-df['sf_avg_52_r'])
-    # df['p0_s_sf_kls_JS'] = df['tny_stats']+(df['p0_sf_s_pct_JS']-df['sf_avg_52_s']) - (df['p1_sf_r_pct_JS']-df['sf_avg_52_r'])
-    # df['p1_s_sf_kls_JS'] = df['tny_stats']+(df['p1_sf_s_pct_JS']-df['sf_avg_52_s']) - (df['p0_sf_r_pct_JS']-df['sf_avg_52_r'])
+    # df['p0_s_sf_kls_EM'] = df['tny_stats']+(df['p0_sf_s_pct_EM']-df['sf_avg_52_s']) - (df['p1_sf_r_pct_EM']-df['sf_avg_52_r'])
+    # df['p1_s_sf_kls_EM'] = df['tny_stats']+(df['p1_sf_s_pct_EM']-df['sf_avg_52_s']) - (df['p0_sf_r_pct_EM']-df['sf_avg_52_r'])
     df['p0_s_adj_kls'] = df['tny_stats']+(df['p0_52_s_adj']) - (df['p1_52_r_adj'])
     df['p1_s_adj_kls'] = df['tny_stats']+(df['p1_52_s_adj']) - (df['p0_52_r_adj'])
-    df['p0_s_adj_kls_JS'] = df['tny_stats']+(df['p0_52_s_adj_JS']) - (df['p1_52_r_adj_JS'])
-    df['p1_s_adj_kls_JS'] = df['tny_stats']+(df['p1_52_s_adj_JS']) - (df['p0_52_r_adj_JS'])
+    df['p0_s_adj_kls_EM'] = df['tny_stats']+(df['p0_52_s_adj_EM']) - (df['p1_52_r_adj_EM'])
+    df['p1_s_adj_kls_EM'] = df['tny_stats']+(df['p1_52_s_adj_EM']) - (df['p0_52_r_adj_EM'])
 
     # generate match probabilities and z-scores for Klaassen method, with and w/o JS estimators
     df['match_prob_kls'] = [matchProb(row['p0_s_kls'],1-row['p1_s_kls']) for i,row in df.iterrows()]
-    df['match_prob_kls_JS'] = [matchProb(row['p0_s_kls_JS'],1-row['p1_s_kls_JS']) for i,row in df.iterrows()]
+    df['match_prob_kls_EM'] = [matchProb(row['p0_s_kls_EM'],1-row['p1_s_kls_EM']) for i,row in df.iterrows()]
     # df['match_prob_sf_kls'] = [matchProb(row['p0_s_sf_kls'],1-row['p1_s_sf_kls']) for i,row in df.iterrows()]
-    # df['match_prob_sf_kls_JS'] = [matchProb(row['p0_s_sf_kls_JS'],1-row['p1_s_sf_kls_JS']) for i,row in df.iterrows()]
+    # df['match_prob_sf_kls_EM'] = [matchProb(row['p0_s_sf_kls_EM'],1-row['p1_s_sf_kls_EM']) for i,row in df.iterrows()]
     df['match_prob_adj_kls'] = [matchProb(row['p0_s_adj_kls'],1-row['p1_s_adj_kls']) for i,row in df.iterrows()]
-    df['match_prob_adj_kls_JS'] = [matchProb(row['p0_s_adj_kls_JS'],1-row['p1_s_adj_kls_JS']) for i,row in df.iterrows()]
+    df['match_prob_adj_kls_EM'] = [matchProb(row['p0_s_adj_kls_EM'],1-row['p1_s_adj_kls_EM']) for i,row in df.iterrows()]
 
     # generate win probabilities from elo differences
     df['elo_prob'] = (1+10**(df['elo_diff']/-400.))**-1
@@ -379,8 +384,8 @@ def generate_EM_stats(df,cols):
 
         stat_history[stat_history!=stat_history] = p_hat
         group_var = np.var(stat_history)
-        df['p0_'+col+'_JS'] = df['p0_'+col]+B_i[:n]*(p_hat-df['p0_'+col])
-        df['p1_'+col+'_JS'] = df['p1_'+col]+B_i[n:]*(p_hat-df['p1_'+col])
+        df['p0_'+col+'_EM'] = df['p0_'+col]+B_i[:n]*(p_hat-df['p0_'+col])
+        df['p1_'+col+'_EM'] = df['p1_'+col]+B_i[n:]*(p_hat-df['p1_'+col])
         print col, p_hat
     return df # ok if p_hats don't add up because they're avg of averages
 
@@ -512,7 +517,7 @@ def elo_induced_s(prob,s_total):
 import to set s_total with JS-normalized percentages
 '''
 def generate_elo_induced_s(df,col,start_ind=0):
-    df['s_total'] = df['p0_s_kls_JS'] + df['p1_s_kls_JS']
+    df['s_total'] = df['p0_s_kls_EM'] + df['p1_s_kls_EM']
     induced_s = np.zeros([len(df),2])
     for i, row in df.loc[start_ind:].iterrows():
         induced_s[i] = elo_induced_s(row[col+'_prob'],row['s_total'])
@@ -521,7 +526,7 @@ def generate_elo_induced_s(df,col,start_ind=0):
     return df
 
 # # not using any more...
-# def generate_JS_stats(df,cols):
+# def generate_EM_stats(df,cols):
 #     #### James-Stein estimators for 52-week serve and return percentages ####
 #     # calculate B_i coefficients for each player in terms of service points
 #     for col in cols:
@@ -542,8 +547,8 @@ def generate_elo_induced_s(df,col,start_ind=0):
 
 #         stat_history[stat_history!=stat_history] = p_hat
 #         group_var = np.var(stat_history)
-#         df['p0_'+col+'_JS'] = df['p0_'+col]+df['B_'+col+'_i0_sv']*(p_hat-df['p0_'+col])
-#         df['p1_'+col+'_JS'] = df['p1_'+col]+df['B_'+col+'_i1_sv']*(p_hat-df['p1_'+col])
+#         df['p0_'+col+'_EM'] = df['p0_'+col]+df['B_'+col+'_i0_sv']*(p_hat-df['p0_'+col])
+#         df['p1_'+col+'_EM'] = df['p1_'+col]+df['B_'+col+'_i1_sv']*(p_hat-df['p1_'+col])
 #         print col, p_hat
 
 
@@ -562,8 +567,8 @@ def generate_elo_induced_s(df,col,start_ind=0):
 
 #         s_history[s_history!=s_history] = p_hat
 #         group_var = np.var(s_history)
-#         df['p0_'+sv+'s_pct_JS'] = df['p0_'+sv+'s_pct']+df['B_'+sv+'i0_sv']*(p_hat-df['p0_'+sv+'s_pct'])
-#         df['p1_'+sv+'s_pct_JS'] = df['p1_'+sv+'s_pct']+df['B_'+sv+'i1_sv']*(p_hat-df['p1_'+sv+'s_pct'])
+#         df['p0_'+sv+'s_pct_EM'] = df['p0_'+sv+'s_pct']+df['B_'+sv+'i0_sv']*(p_hat-df['p0_'+sv+'s_pct'])
+#         df['p1_'+sv+'s_pct_EM'] = df['p1_'+sv+'s_pct']+df['B_'+sv+'i1_sv']*(p_hat-df['p1_'+sv+'s_pct'])
 
 #         # repeat for return averages (slightly different tau^2 value)
 #         r_history = np.concatenate([df['p0_'+sv+'52_rwon']/df['p0_'+sv+'52_rpt'],\
@@ -575,8 +580,8 @@ def generate_elo_induced_s(df,col,start_ind=0):
 #         df['B_'+sv+'i0_r'],df['B_'+sv+'i1_r'] = B_i[:n],B_i[n:]
 
 #         r_history[r_history!=r_history] = 1-p_hat
-#         df['p0_'+sv+'r_pct_JS'] = r_history[:n]+df['B_'+sv+'i0_r']*((1-p_hat)-r_history[:n])
-#         df['p1_'+sv+'r_pct_JS'] = r_history[n:]+df['B_'+sv+'i1_r']*((1-p_hat)-r_history[n:])
+#         df['p0_'+sv+'r_pct_EM'] = r_history[:n]+df['B_'+sv+'i0_r']*((1-p_hat)-r_history[:n])
+#         df['p1_'+sv+'r_pct_EM'] = r_history[n:]+df['B_'+sv+'i1_r']*((1-p_hat)-r_history[n:])
 #     return df
 
 # def connect_df(match_df,pbp_df,col_d,player_cols,start_year=2009):
@@ -649,13 +654,13 @@ def generate_elo_induced_s(df,col,start_ind=0):
 #          u'elo_diff', u'sf_elo_diff',
 #          u'elo_diff_538', u'sf_elo_diff_538',
 #          u'p0_s_pct', u'p0_r_pct', u'p1_s_pct', u'p1_r_pct', 
-#          u'p0_s_pct_JS', u'p1_s_pct_JS', u'p0_r_pct_JS', u'p1_r_pct_JS',
+#          u'p0_s_pct_EM', u'p1_s_pct_EM', u'p0_r_pct_EM', u'p1_r_pct_EM',
 #          u'p0_sf_52_swon', u'p0_sf_52_svpt',u'p1_sf_52_swon', u'p1_sf_52_svpt', 
 #          u'p0_sf_52_rwon', u'p0_sf_52_rpt', u'p1_sf_52_rwon', u'p1_sf_52_rpt',
 #          u'p0_sf_s_pct', u'p0_sf_r_pct', u'p1_sf_s_pct', u'p1_sf_r_pct', 
-#          u'p0_sf_s_pct_JS', u'p1_sf_s_pct_JS', u'p0_sf_r_pct_JS', u'p1_sf_r_pct_JS',
+#          u'p0_sf_s_pct_EM', u'p1_sf_s_pct_EM', u'p0_sf_r_pct_EM', u'p1_sf_r_pct_EM',
 #          u'p0_52_s_adj',u'p0_52_r_adj',u'p1_52_s_adj',u'p1_52_r_adj',
-#          u'p0_52_s_adj_JS',u'p0_52_r_adj_JS',u'p1_52_s_adj_JS',u'p1_52_r_adj_JS',
+#          u'p0_52_s_adj_EM',u'p0_52_r_adj_EM',u'p1_52_s_adj_EM',u'p1_52_r_adj_EM',
 #          u'avg_52_s', u'avg_52_r', u'sf_avg_52_s', u'sf_avg_52_r',
 #          'tny_stats','best_of','score','pbp',
 #          'logit_elo_538_prob', #'logit_elo_prob','logit_elo_diff_prob','logit_elo_diff_538_prob',
