@@ -23,9 +23,11 @@ if __name__=='__main__':
 	start_ind = match_df[match_df['match_year']>=START_YEAR-1].index[0]
 	current_elo_ratings, match_df = generate_dfs(match_df, 1, start_ind)
 	# match_df = generate_stats(match_df, start_ind) # 52, etc adj, tny
+	start_ind = 0 # reset because we already shaved match_df
 	current_52_stats = get_current_52_stats(match_df, start_ind)
 
 	# merge relevant current statistics
+	# NOTE: you may want to use original match sample size to compute em_stats at current time...
 	current_df = current_elo_ratings.merge(current_52_stats, on='player')
 	current_df = generate_EM_stats_current(current_df, cols=['52_s_pct','52_r_pct']) # add EM normalization
 	current_df.to_csv('match_data_constructed/current_match_df_{}'.format(DATE), index=False)

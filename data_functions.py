@@ -176,6 +176,9 @@ def generate_stats(df, start_ind):
     
     em_cols = ['s_pct', 'r_pct', '52_s_adj', '52_r_adj']
     df = generate_sr_pct(df)
+
+    # FIX for correct em stat sample sizes
+    df = df.loc[start_ind:].reset_index(drop=True)
     df = generate_EM_stats(df, em_cols)
     return df
 
