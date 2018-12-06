@@ -1,19 +1,16 @@
-# modify this for your own path
-# SCRIPT_PATH = '/Users/jacobgollub/Desktop/tennis_probs_live/match_data'
-PROBS_PATH = '/Users/jacobgollub/Desktop/github_repos/tennis_probs_live/sackmann'
+import os
+import sys
+from helper_functions import *
+from data_functions import *
+
+pd.options.mode.chained_assignment = None
+sys.path.insert(0, os.getcwd() + '/sackmann')
 TOUR = 'atp'
 START_YEAR = 2010
 CURRENT_YEAR = 2018
 DATE = '6_29_{}'.format(CURRENT_YEAR)
 RET_STRINGS = ('ABN','DEF','In Progress','RET','W/O',' RET',' W/O','nan','walkover')
 ABD_STRINGS = ('abandoned','ABN','ABD','DEF','def','unfinished','Walkover')
-
-import sys
-# sys.path.insert(0,SCRIPT_PATH)
-sys.path.insert(0,PROBS_PATH)
-from helper_functions import *
-from data_functions import *
-pd.options.mode.chained_assignment = None
 
 if __name__=='__main__':
 	# NOTE: could you use 'winner_id' to identify rather than correcting name mispellings?
@@ -22,7 +19,6 @@ if __name__=='__main__':
 	match_df = format_match_df(match_df,TOUR,ret_strings=RET_STRINGS,abd_strings=ABD_STRINGS)
 	start_ind = match_df[match_df['match_year']>=START_YEAR-1].index[0]
 	current_elo_ratings, match_df = generate_dfs(match_df, 1, start_ind)
-	# match_df = generate_stats(match_df, start_ind) # 52, etc adj, tny
 	start_ind = 0 # reset because we already shaved match_df
 	current_52_stats = get_current_52_stats(match_df, start_ind)
 
