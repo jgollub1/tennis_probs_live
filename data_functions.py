@@ -1,33 +1,20 @@
-PROBS_PATH = '/Users/jacobgollub/Desktop/github_repos/tennis_probs_live/sackmann'
-
-# see if it works with this commented out???
+import os
 import sys
-sys.path.insert(0,PROBS_PATH)
+PROBS_PATH = '{}/sackmann'.format(os.getcwd())
+sys.path.insert(0, PROBS_PATH)
 import numpy as np
 import pandas as pd
 import elo_538 as elo
-from helper_functions import adj_stats_52,stats_52,tny_52,normalize_name
-from sklearn import linear_model
 import re, datetime
 import tennisGameProbability
 import tennisMatchProbability
 import tennisSetProbability
 import tennisTiebreakProbability
 from tennisMatchProbability import matchProb
+from helper_functions import adj_stats_52,stats_52,tny_52,normalize_name
+from sklearn import linear_model
 
 # TO DO: add switches or global indicators for surface stats
-# TO DO: look into issue of inconsistent tournament naming 
-# (he changed the tny_id naming scheme from 2015 to 2016...)
-# TO DO: create a consistent naming pattern for columns of s/r variations ... DONE!!!
-
-# TO DO: what is the difference between 's_pct' and '52_s_pct'???
-
-# TO DO: make sure to start at an earlier year when producing adj stats!! (it's like elo...)
-
-# TO DO: modify get_current_elo/52_stats() to get from label p0/p1...
-
-# TO DO: how did kovalchik calculate RMSE in her paper??
-
 
 '''
 concatenate original match dataframes from years 
@@ -527,174 +514,3 @@ def generate_elo_induced_s(df,col,start_ind=0):
     df['p0_s_kls_'+col] = induced_s[:,0]
     df['p1_s_kls_'+col] = induced_s[:,1]
     return df
-
-# # not using any more...
-# def generate_EM_stats(df,cols):
-#     #### James-Stein estimators for 52-week serve and return percentages ####
-#     # calculate B_i coefficients for each player in terms of service points
-#     for col in cols:
-#         stat_history = np.concatenate([df['p0_'+col],df['p1_'+col]],axis=0)
-#         n = len(stat_history)/2
-#         group_var = np.var(stat_history)
-#         num_points = np.concatenate([df['p0_52_svpt'],df['p1_52_svpt']]) if '_s_' in col \
-#                     else np.concatenate([df['p0_52_rpt'],df['p1_52_rpt']])
-#         p_hat = np.mean(stat_history)
-#         sigma2_i = np.divide(p_hat*(1-p_hat),num_points,where=num_points>0)
-#         tau2_hat = np.nanvar(stat_history)
-#         #print 'col: ', col
-#         #print 'sigma2, tau2:', sigma2_i, tau2_hat
-#         # print col
-#         # print p_hat, tau2_hat,np.nanvar(num_points)
-#         B_i = sigma2_i/(tau2_hat+sigma2_i)
-#         df['B_'+col+'_i0_sv'],df['B_'+col+'_i1_sv'] = B_i[:n],B_i[n:]
-
-#         stat_history[stat_history!=stat_history] = p_hat
-#         group_var = np.var(stat_history)
-#         df['p0_'+col+'_EM'] = df['p0_'+col]+df['B_'+col+'_i0_sv']*(p_hat-df['p0_'+col])
-#         df['p1_'+col+'_EM'] = df['p1_'+col]+df['B_'+col+'_i1_sv']*(p_hat-df['p1_'+col])
-#         print col, p_hat
-
-
-#     # repeat for surface stats and overall stats
-#     p_hat = np.sum([df['p0_52_swon'],df['p1_52_swon']])/np.sum([df['p0_52_svpt'],df['p1_52_svpt']])
-#     for sv in ['','sf_']:
-#         s_history = np.concatenate([df['p0_'+sv+'52_swon']/df['p0_'+sv+'52_svpt'],\
-#                     df['p1_'+sv+'52_swon']/df['p1_'+sv+'52_svpt']],axis=0)
-#         n = len(s_history)/2
-#         group_var = np.var(s_history)
-#         s_points = np.concatenate([df['p0_'+sv+'52_svpt'],df['p1_'+sv+'52_svpt']])
-#         sigma2_i = np.divide(p_hat*(1-p_hat),s_points,where=s_points>0)
-#         tau2_hat = np.nanvar(s_history)
-#         B_i = sigma2_i/(tau2_hat+sigma2_i)
-#         df['B_'+sv+'i0_sv'],df['B_'+sv+'i1_sv'] = B_i[:n],B_i[n:]
-
-#         s_history[s_history!=s_history] = p_hat
-#         group_var = np.var(s_history)
-#         df['p0_'+sv+'s_pct_EM'] = df['p0_'+sv+'s_pct']+df['B_'+sv+'i0_sv']*(p_hat-df['p0_'+sv+'s_pct'])
-#         df['p1_'+sv+'s_pct_EM'] = df['p1_'+sv+'s_pct']+df['B_'+sv+'i1_sv']*(p_hat-df['p1_'+sv+'s_pct'])
-
-#         # repeat for return averages (slightly different tau^2 value)
-#         r_history = np.concatenate([df['p0_'+sv+'52_rwon']/df['p0_'+sv+'52_rpt'],\
-#                     df['p1_'+sv+'52_rwon']/df['p1_'+sv+'52_rpt']],axis=0)
-#         r_points = np.concatenate([df['p0_'+sv+'52_rpt'],df['p1_'+sv+'52_rpt']])
-#         sigma2_i = np.divide((1-p_hat)*p_hat,r_points,where=r_points>0)
-#         tau2_hat = np.nanvar(r_history)
-#         B_i = sigma2_i/(tau2_hat+sigma2_i)
-#         df['B_'+sv+'i0_r'],df['B_'+sv+'i1_r'] = B_i[:n],B_i[n:]
-
-#         r_history[r_history!=r_history] = 1-p_hat
-#         df['p0_'+sv+'r_pct_EM'] = r_history[:n]+df['B_'+sv+'i0_r']*((1-p_hat)-r_history[:n])
-#         df['p1_'+sv+'r_pct_EM'] = r_history[n:]+df['B_'+sv+'i1_r']*((1-p_hat)-r_history[n:])
-#     return df
-
-# def connect_df(match_df,pbp_df,col_d,player_cols,start_year=2009):
-#     pbp_dict = {}; winner_dict = {}
-#     for i in xrange(len(pbp_df)):
-#         key = pbp_df['w_name'][i] +' ' +  pbp_df['l_name'][i] + ' ' \
-#             + str(pbp_df['match_year'][i]) + ' ' + pbp_df['score'][i]
-#         key = key+' '+str(pbp_df['match_month'][i]) if key in col_d else key
-#         if key in pbp_dict:
-#             continue
-#         pbp_dict[key] = pbp_df['pbp'][i]
-#         winner_dict[key] = pbp_df['winner'][i]
-
-#     # in case of a collision (about 10 cases), I only take the first match with that key
-#     c = 0
-#     pbps,winners = [],[]
-#     info = {}
-
-#     match_df = match_df[match_df['match_year']>=start_year]
-#     for i in match_df.index:
-#         key = match_df['w_name'][i] +' ' +  match_df['l_name'][i] + ' ' \
-#             +str(match_df['match_year'][i])+' '+match_df['score'][i]
-#         key = key+' '+str(match_df['match_month'][i]) if key in col_d else key
-#         if key in pbp_dict:
-#             c += 1
-#             pbps.append(pbp_dict[key])
-#             winners.append(winner_dict[key])
-#             if key in info:
-#                 pbps[-1] = 'None'; winners[-1] = 'None'
-#                 print 'collision'; print key + ' ' + str(match_df['match_month'][i])
-#             info[key] = 1
-#         else:
-#             pbps.append('None')
-#             # we'll just make 'winner' a random 0 or 1 for now
-#             winners.append(np.random.choice([0,1]))
-#     print c
-#     match_df['pbp'] = pbps
-#     match_df['winner'] = winners
-
-#     #df = match_df[match_df['pbp']!='NA']
-#     #cols = df.columns.drop(['loser_id','winner_id'])
-#     df = match_df[match_df.columns.drop(['loser_id','winner_id'])]
-#     df = df.reset_index(drop=True)
-
-#     # change w,l TO p0,p1
-#     for col in player_cols:
-#         df['p0'+col] = [df['l'+col][i] if df['winner'][i] else df['w'+col][i] for i in xrange(len(df))]
-#         df['p1'+col] = [df['w'+col][i] if df['winner'][i] else df['l'+col][i] for i in xrange(len(df))]
-
-#     # add s/r pct columns
-#     p_hat = np.sum([df['p0_52_swon'],df['p1_52_swon']])/np.sum([df['p0_52_svpt'],df['p1_52_svpt']])
-#     for label in ['p0','p1']:
-#         df[label+'_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_swon']/df[label+'_52_svpt'])]
-#         df[label+'_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_rwon']/df[label+'_52_rpt'])]
-#         df[label+'_sf_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_swon']/df[label+'_sf_52_svpt'])]
-#         df[label+'_sf_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_rwon']/df[label+'_sf_52_rpt'])]
-
-#     df['elo_diff'] = [df['p0_elo'][i] - df['p1_elo'][i] for i in xrange(len(df))]
-#     df['sf_elo_diff'] = [df['p0_sf_elo'][i] - df['p1_sf_elo'][i] for i in xrange(len(df))]
-#     df['tny_name'] = [s if s==s else 'Davis Cup' for s in df['tny_name']]
-#     return df
-
-# # keep relevant columns
-# df = df[['tny_id','tny_name','surface','tny_date','match_year','match_month',
-#          u'p0_name', u'p1_name', u'p0_elo',
-#          u'p1_elo', u'p0_sf_elo', u'p1_sf_elo', u'p0_elo_538', u'p1_elo_538',
-#          u'p0_sf_elo_538', u'p1_sf_elo_538', u'p0_52_swon',u'p0_52_svpt', 
-#          u'p1_52_swon', u'p1_52_svpt', u'p0_52_rwon', u'p0_52_rpt',
-#          u'p1_52_rwon', u'p1_52_rpt', 
-#          u'elo_diff', u'sf_elo_diff',
-#          u'elo_diff_538', u'sf_elo_diff_538',
-#          u'p0_s_pct', u'p0_r_pct', u'p1_s_pct', u'p1_r_pct', 
-#          u'p0_s_pct_EM', u'p1_s_pct_EM', u'p0_r_pct_EM', u'p1_r_pct_EM',
-#          u'p0_sf_52_swon', u'p0_sf_52_svpt',u'p1_sf_52_swon', u'p1_sf_52_svpt', 
-#          u'p0_sf_52_rwon', u'p0_sf_52_rpt', u'p1_sf_52_rwon', u'p1_sf_52_rpt',
-#          u'p0_sf_s_pct', u'p0_sf_r_pct', u'p1_sf_s_pct', u'p1_sf_r_pct', 
-#          u'p0_sf_s_pct_EM', u'p1_sf_s_pct_EM', u'p0_sf_r_pct_EM', u'p1_sf_r_pct_EM',
-#          u'p0_52_s_adj',u'p0_52_r_adj',u'p1_52_s_adj',u'p1_52_r_adj',
-#          u'p0_52_s_adj_EM',u'p0_52_r_adj_EM',u'p1_52_s_adj_EM',u'p1_52_r_adj_EM',
-#          u'avg_52_s', u'avg_52_r', u'sf_avg_52_s', u'sf_avg_52_r',
-#          'tny_stats','best_of','score','pbp',
-#          'logit_elo_538_prob', #'logit_elo_prob','logit_elo_diff_prob','logit_elo_diff_538_prob',
-#          'winner']]
-
-
-# '''
-# not used any more...
-# '''
-# def get_current_elo(df, counts_i):
-#     players_list = list(np.union1d(df.w_name, df.l_name))
-#     players_elo = dict(zip(players_list, [elo.Rating() for __ in players_list]))
-#     elo_obj = elo.Elo_Rater()
-
-#     # update player elo from every recorded match
-#     current_month = df['match_month'][0]
-#     active_players = {current_month: set([])}
-
-#     for i, row in df.iterrows():
-#         if row['match_month'] != current_month:
-#             current_month = row['match_month']
-#             active_players[current_month] = set([])
-
-#         active_players[current_month].add(row['w_name'])
-#         active_players[current_month].add(row['l_name'])
-#         is_gs = row['is_gs']
-#         elo_obj.rate_1vs1(players_elo[row['w_name']],players_elo[row['l_name']],is_gs,counts_i)
-
-#     players = active_players.values()
-#     players = set.union(*players)
-#     current_ratings = [(player, players_elo[player].value) for player in players]
-#     cols = ['player','elo']
-#     return pd.DataFrame(sorted(current_ratings, key=lambda x:x[1])[::-1], columns=cols)
-

@@ -5,7 +5,13 @@ from sklearn import linear_model
 from sklearn.model_selection import KFold
 from sklearn.metrics import log_loss,accuracy_score
 
-# accept dates in (year,month); last_year contains last 12 month stats, most recent to least
+PBP_COLS = ['sets_0','sets_1','games_0','games_1','points_0','points_1','tp_0','tp_1','p0_swp','p0_sp','p1_swp','p1_sp','server']
+
+'''
+tracking object for player's year-long performance over time
+accepts dates in (year,month)
+last_year contains last 12 months stats, most recent to least
+'''
 class stats_52():
     def __init__(self,date):
         self.most_recent = date
@@ -26,7 +32,10 @@ class stats_52():
         self.set_month(match_date)
         self.last_year[0] = self.last_year[0]+match_stats
 
-# stores opponent ability at time of match to produce adjusted stats
+'''
+tracking object for opponent-adjusted ratings
+stores opponent ability at time of match to compare performance against
+'''
 class adj_stats_52():
     def __init__(self,date):
         self.most_recent = date
@@ -65,7 +74,9 @@ class adj_stats_52():
         self.adj_sr[1] = g_i - g_adj
 
 
-# a similar class to store a tournament's serving averages from the previous year
+'''
+tracking object for yearly tournament averages
+'''
 class tny_52():
     def __init__(self,date):
         self.most_recent = date
@@ -84,10 +95,12 @@ class tny_52():
         return 0 if self.tny_stats[1][1]==0 else self.tny_stats[1][0]/float(self.tny_stats[1][1])
 
 
-# v3.0 with smarter object construction
-# use np.array to create arrays from lists; use np.concatenate to combine arrays
-# figuring out the last three lines here made my function about four times faster...
-def enumerate_pbp_2(s,columns,final_set_extend=0):
+'''
+v3.0 with smarter object construction
+use np.array to create arrays from lists; use np.concatenate to combine arrays
+figuring out the last three lines here made my function about four times faster...
+'''
+def enumerate_pbp_V3(s,columns,final_set_extend=0):
     # find the number of S,R,D,A characters and use this to initialize
     # all columns as npy arrays of this length
     length = len(s.replace('.','').replace('/','').replace(';',''))
@@ -193,16 +206,15 @@ def enumerate_pbp_2(s,columns,final_set_extend=0):
 # leave this here so you can modify column names
 # NOTE: it is best to keep all the arrays in a list and then concatenate outside the loop
 # columns param. specifies which columns to feed into the new dataframe
-def generate_df_2(df_pbp,columns,final_set_extend):
+def generate_df_V2(df_pbp,columns,final_set_extend):
     pbps,dfs = [0]*len(df_pbp),[0]*len(df_pbp)
     for i in xrange(len(df_pbp)):
         info = [df_pbp[col][i] for col in columns]
-        a,b = enumerate_pbp_2(df_pbp['pbp'][i],info,final_set_extend)
+        a,b = enumerate_pbp_V3(df_pbp['pbp'][i],info,final_set_extend)
         pbps[i],dfs[i] = a, np.asarray(b)
 
     df = pd.DataFrame(np.concatenate(dfs))
-    df.columns = columns + ['sets_0','sets_1','games_0',\
-                  'games_1','points_0','points_1','tp_0','tp_1','p0_swp','p0_sp','p1_swp','p1_sp','server']
+    df.columns = columns + PBP_COLS
     print 'df shape: ', df.shape
     df[df.columns[2:]] = df[df.columns[2:]].astype(float)
     df['score'] = np.concatenate(pbps)
@@ -502,12 +514,3 @@ if __name__=='__main__':
     S3 = 'SSSS;SSSS;SSSS;SSSS;SSSS;SSSS;SSSS;SSSS;SSRRSRSRSS;SSSRS;RRSSRSSS;SSSRS;S/SS/SR/SS/SS/RS/SS/SS/SS/R.RRRSSR;RSRRR;S'
     S4 = 'SS/R.RRRSSR;RSRRR;SSSS;RSSSS;SSRSS;SRSRSRRSSS;SRSSRS;RRRR;RRSRSS'
     a,b = enumerate_pbp(S,'point')
-
-
-
-
-
-
-
-
-
