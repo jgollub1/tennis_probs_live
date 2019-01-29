@@ -1,7 +1,6 @@
 import os
 import sys
-PROBS_PATH = '{}/sackmann'.format(os.getcwd())
-sys.path.insert(0, PROBS_PATH)
+sys.path.insert(0, '{}/sackmann'.format(os.getcwd())
 import numpy as np
 import pandas as pd
 import elo_538 as elo

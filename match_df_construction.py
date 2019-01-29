@@ -1,38 +1,36 @@
 import os
 import sys
+from datetime import datetime as dt
 from helper_functions import *
 from data_functions import *
 
 pd.options.mode.chained_assignment = None
-sys.path.insert(0, os.getcwd() + '/sackmann')
-TOUR = 'atp'
+sys.path.insert(0, '{}/sackmann'.format(os.getcwd()))
+DATE = dt.now().strftime(('%m/%d/%Y'))
 START_YEAR = 2010
-CURRENT_YEAR = 2018
-DATE = '6_29_{}'.format(CURRENT_YEAR)
+TOUR = 'atp'
 RET_STRINGS = ('ABN','DEF','In Progress','RET','W/O',' RET',' W/O','nan','walkover')
 ABD_STRINGS = ('abandoned','ABN','ABD','DEF','def','unfinished','Walkover')
 
 if __name__=='__main__':
-	# NOTE: could you use 'winner_id' to identify rather than correcting name mispellings?
 	print 'main'
 	match_df = concat_data(1968, 2018, TOUR)
 	match_df = format_match_df(match_df,TOUR,ret_strings=RET_STRINGS,abd_strings=ABD_STRINGS)
 	start_ind = match_df[match_df['match_year']>=START_YEAR-1].index[0]
 	current_elo_ratings, match_df = generate_dfs(match_df, 1, start_ind)
-	start_ind = 0 # reset because we already shaved match_df
+	start_ind = 0
 	current_52_stats = get_current_52_stats(match_df, start_ind)
 
-	# merge relevant current statistics
-	# NOTE: you may want to use original match sample size to compute em_stats at current time...
+	current_file_path = 'match_data_constructed/current_match_df_{}'.format(DATE)
 	current_df = current_elo_ratings.merge(current_52_stats, on='player')
-	current_df = generate_EM_stats_current(current_df, cols=['52_s_pct','52_r_pct']) # add EM normalization
-	current_df.to_csv('match_data_constructed/current_match_df_{}'.format(DATE), index=False)
-	print 'match_data_constructed/current_match_df_{}'.format(DATE) + ' constructed'
+	current_df = generate_EM_stats_current(current_df, cols=['52_s_pct','52_r_pct'])
+	current_df.to_csv(current_file_path, index=False)
+	print '{} constructed '.format(current_file_path)
 
-	# TO DO: produce s/r_kls, elo_induced
+	match_file_path = 'match_data_constructed/match_df_{}'.format(DATE)
 	match_df = match_df[match_df['match_year']>=START_YEAR].reset_index(drop=True) # shave off prev years
-	match_df.to_csv('match_data_constructed/match_df_{}'.format(DATE), index=False)
-	print 'match_data_constructed/match_df_{}'.format(DATE) + ' constructed'
+	match_df.to_csv(match_file_path, index=False)
+	print '{} constructed'.format(match_file_path)
 
 	
 
