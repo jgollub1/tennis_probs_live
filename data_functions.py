@@ -1,6 +1,6 @@
 import os
 import sys
-sys.path.insert(0, '{}/sackmann'.format(os.getcwd())
+sys.path.insert(0, '{}/sackmann'.format(os.getcwd()))
 import numpy as np
 import pandas as pd
 import elo_538 as elo
@@ -10,7 +10,7 @@ import tennisMatchProbability
 import tennisSetProbability
 import tennisTiebreakProbability
 from tennisMatchProbability import matchProb
-from helper_functions import adj_stats_52,stats_52,tny_52,normalize_name
+from helper_functions import adj_stats_52, stats_52, tny_52, normalize_name
 from sklearn import linear_model
 
 # TO DO: add switches or global indicators for surface stats
@@ -513,3 +513,4 @@ def generate_elo_induced_s(df,col,start_ind=0):
     df['p0_s_kls_'+col] = induced_s[:,0]
     df['p1_s_kls_'+col] = induced_s[:,1]
     return df
+
