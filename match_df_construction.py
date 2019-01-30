@@ -6,11 +6,11 @@ from data_functions import *
 
 pd.options.mode.chained_assignment = None
 sys.path.insert(0, '{}/sackmann'.format(os.getcwd()))
-DATE = dt.now().strftime(('%m/%d/%Y'))
 START_YEAR = 2010
 TOUR = 'atp'
 RET_STRINGS = ('ABN','DEF','In Progress','RET','W/O',' RET',' W/O','nan','walkover')
 ABD_STRINGS = ('abandoned','ABN','ABD','DEF','def','unfinished','Walkover')
+DATE = dt.now().strftime(('%m/%d/%Y'))
 
 if __name__=='__main__':
 	print 'main'
