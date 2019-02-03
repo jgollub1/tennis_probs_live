@@ -21,7 +21,7 @@ concatenate original match dataframes from years
 '''
 def concat_data(start_y, end_y, tour):
     atp_year_list = []
-    for i in xrange(start_y, end_y+1):
+    for i in range(start_y, end_y+1):
         f_name = "match_data/"+tour+"_matches_{0}.csv".format(i)
         atp_year_list.append(pd.read_csv(f_name))
     return pd.concat(atp_year_list, ignore_index = True)
@@ -31,9 +31,9 @@ data cleaning and formatting
 normalize_name() is specific to atp/wta...
 '''
 def format_match_df(df,tour,ret_strings=[],abd_strings=[]):
-    cols = [u'tourney_id', u'tourney_name', u'surface', u'draw_size', u'tourney_date', \
-            u'match_num', u'winner_name', u'loser_name', u'score', u'best_of', u'w_svpt', \
-            u'w_1stWon', u'w_2ndWon', u'l_svpt', u'l_1stWon', u'l_2ndWon']
+    cols = ['tourney_id', 'tourney_name', 'surface', 'draw_size', 'tourney_date', \
+            'match_num', 'winner_name', 'loser_name', 'score', 'best_of', 'w_svpt', \
+            'w_1stWon', 'w_2ndWon', 'l_svpt', 'l_1stWon', 'l_2ndWon']
     df = df[cols]
     df = df.rename(columns={'winner_name':'w_name','loser_name':'l_name','tourney_id':'tny_id',\
                             'tourney_name':'tny_name','tourney_date':'tny_date'})
@@ -75,8 +75,8 @@ randomly assigning 'w'/'l' to 'p0','p1'
 def change_labels(df, cols):
     # change w,l TO p0,p1
     for col in cols:
-        df['p0'+col] = [df['l'+col][i] if df['winner'][i] else df['w'+col][i] for i in xrange(len(df))]
-        df['p1'+col] = [df['w'+col][i] if df['winner'][i] else df['l'+col][i] for i in xrange(len(df))]
+        df['p0'+col] = [df['l'+col][i] if df['winner'][i] else df['w'+col][i] for i in range(len(df))]
+        df['p1'+col] = [df['w'+col][i] if df['winner'][i] else df['l'+col][i] for i in range(len(df))]
 
     # add s/r pct columns
     p_hat = np.sum([df['p0_52_swon'],df['p1_52_swon']])/np.sum([df['p0_52_svpt'],df['p1_52_svpt']])
@@ -121,10 +121,10 @@ def get_current_52_stats(df, start_ind):
             active_players[row[label+'_name']] = 1 # log active player
 
     # update every player to current month
-    for player in active_players.keys():
+    for player in list(active_players.keys()):
         players_stats[player].set_month(date)
 
-    players = active_players.keys()
+    players = list(active_players.keys())
     current_52_stats = [[player] + list(np.sum(players_stats[player].last_year,axis=0)) \
                         for player in players]
     # avg_52_stats = np.sum(avg_stats.last_year,axis=0)
@@ -190,8 +190,8 @@ def generate_sr_pct(df):
 
 def finalize_df(df):
     # generate serving probabilities for Klaassen-Magnus model
-    df['match_id'] = range(len(df))
-    df['tny_stats'] = [df['avg_52_s'][i] if df['tny_stats'][i]==0 else df['tny_stats'][i] for i in xrange(len(df))]
+    df['match_id'] = list(range(len(df)))
+    df['tny_stats'] = [df['avg_52_s'][i] if df['tny_stats'][i]==0 else df['tny_stats'][i] for i in range(len(df))]
     df['p0_s_kls'] = df['tny_stats']+(df['p0_s_pct']-df['avg_52_s']) - (df['p1_r_pct']-df['avg_52_r'])
     df['p1_s_kls'] = df['tny_stats']+(df['p1_s_pct']-df['avg_52_s']) - (df['p0_r_pct']-df['avg_52_r'])
     df['p0_s_kls_EM'] = df['tny_stats']+(df['p0_s_pct_EM']-df['avg_52_s']) - (df['p1_r_pct_EM']-df['avg_52_r'])
@@ -249,11 +249,11 @@ def generate_elo(df, counts_i):
     players_list = np.union1d(df.w_name, df.l_name)
     player_count = len(players_list)
     initial_elos = [elo.Rating() for __ in range(player_count)]
-    players_elo = dict(zip(players_list, initial_elos))
+    players_elo = dict(list(zip(players_list, initial_elos)))
     sf_elo = {}
     for sf in ('Hard','Clay','Grass'):
         initial_elos = [elo.Rating() for __ in range(player_count)]
-        sf_elo[sf] = dict(zip(players_list, initial_elos)) 
+        sf_elo[sf] = dict(list(zip(players_list, initial_elos))) 
 
     elo_1s, elo_2s = [],[]
     sf_elo_1s, sf_elo_2s = [],[]
@@ -286,15 +286,15 @@ def generate_elo(df, counts_i):
             sf_elo_1s.append(w_elo.value)
             sf_elo_2s.append(l_elo.value)            
 
-    players = active_players.values()
+    players = list(active_players.values())
     players = list(set.union(*players))
     active_players_elo = [[players_elo[player].value] for player in players]
-    active_players_elo = dict(zip(players, active_players_elo))
+    active_players_elo = dict(list(zip(players, active_players_elo)))
     
     for sf in ('Hard','Clay','Grass'):
         for player in players:
             active_players_elo[player] += [sf_elo[sf][player].value]
-    active_df = pd.DataFrame([key]+val for key,val in active_players_elo.iteritems())
+    active_df = pd.DataFrame([key]+val for key,val in iter(active_players_elo.items()))
     active_df.columns = ['player', 'elo', 'hard_elo', 'clay_elo', 'grass_elo']
     active_df = active_df.sort_values(by=['elo'], ascending=False)
 
@@ -375,7 +375,7 @@ def generate_EM_stats(df,cols):
         group_var = np.var(stat_history)
         df['p0_'+col+'_EM'] = df['p0_'+col]+B_i[:n]*(p_hat-df['p0_'+col])
         df['p1_'+col+'_EM'] = df['p1_'+col]+B_i[n:]*(p_hat-df['p1_'+col])
-        print col, p_hat
+        print(col, p_hat)
     return df # ok if p_hats don't add up because they're avg of averages
 
 
@@ -398,7 +398,7 @@ def generate_EM_stats_current(df,cols):
         stat_history[stat_history!=stat_history] = p_hat
         group_var = np.var(stat_history)
         df[col+'_EM'] = df[col]+B_i*(p_hat-df[col])
-        print col, p_hat
+        print(col, p_hat)
     return df # ok if p_hats don't add up because they're avg of averages
 
 '''
@@ -481,8 +481,8 @@ def generate_logit_probs(df,cols,col_name):
     df_train = df_train[df_train['winner'].isin([0,1])]
     df_train['winner'] = df_train['winner'].astype(int)
     lm.fit(df_train[cols].values.reshape([df_train.shape[0],len(cols)]),np.asarray(df_train['winner']))
-    print 'cols: ', cols
-    print 'lm coefficients: ', lm.coef_
+    print('cols: ', cols)
+    print('lm coefficients: ', lm.coef_)
     df[col_name] = lm.predict_proba(df[cols].values.reshape([df.shape[0],len(cols)]))[:,0]
     return df
 

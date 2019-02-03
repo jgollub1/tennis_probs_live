@@ -53,11 +53,11 @@ def reseeder(draw, seedloc=3):
             newrow = p[:seedloc] + [int(p[seedloc])] + p[(seedloc+1):]
             seedlist.append(newrow)
     if len(seedlist) < 2:
-        print 'reseeder requires at least two seeds'
-        print impossiblevariable
+        print('reseeder requires at least two seeds')
+        print(impossiblevariable)
     elif numbyes > len(seedlist):
-        print 'reseeder cannot handle more byes than seeds'
-        print impossiblevariable
+        print('reseeder cannot handle more byes than seeds')
+        print(impossiblevariable)
     seedlist = sorted(seedlist, key=itemgetter(seedloc))
     ## place seeds in groups: 1, 2, 3-4, 5-8, etc.
     s1, s2, s3, s5, s9, s17, s33 = [], [], [], [], [], [], []
@@ -130,7 +130,7 @@ def testReseeder():
         for numseeds in range(2, (maxseeds+1)):
             byes = maxseeds*4 - fieldsize
             if byes > numseeds: continue
-            print fieldsize, numseeds
+            print(fieldsize, numseeds)
             fakedraw = generateSampleDraw(fieldsize, numseeds)
             ndraw = reseeder(fakedraw)
 
@@ -139,4 +139,4 @@ def printSampleReseed(fieldsize, numseeds):
     ## visual check that it is behaving as predicted
     sdraw = generateSampleDraw(fieldsize, numseeds)
     ndraw = reseeder(sdraw)
-    for player in ndraw:    print player
+    for player in ndraw:    print(player)

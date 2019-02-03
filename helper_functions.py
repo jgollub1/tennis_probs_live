@@ -164,7 +164,7 @@ def enumerate_pbp_V3(s,columns,final_set_extend=0):
         else:
             for k in range(len(s_new[i])):
                 if s_new[i][k]=='/':
-                    print 'ERROR; this should be TIEBREAK'
+                    print('ERROR; this should be TIEBREAK')
                     return 0
 
                 if s_new[i][k]!='.':    
@@ -208,14 +208,14 @@ def enumerate_pbp_V3(s,columns,final_set_extend=0):
 # columns param. specifies which columns to feed into the new dataframe
 def generate_df_V2(df_pbp,columns,final_set_extend):
     pbps,dfs = [0]*len(df_pbp),[0]*len(df_pbp)
-    for i in xrange(len(df_pbp)):
+    for i in range(len(df_pbp)):
         info = [df_pbp[col][i] for col in columns]
         a,b = enumerate_pbp_V3(df_pbp['pbp'][i],info,final_set_extend)
         pbps[i],dfs[i] = a, np.asarray(b)
 
     df = pd.DataFrame(np.concatenate(dfs))
     df.columns = columns + PBP_COLS
-    print 'df shape: ', df.shape
+    print('df shape: ', df.shape)
     df[df.columns[2:]] = df[df.columns[2:]].astype(float)
     df['score'] = np.concatenate(pbps)
     df['in_lead'] = in_lead(df) 
@@ -357,7 +357,7 @@ def predictive_power(col,df):
 # include a pre-match prediction
 def do_classify(clf, parameters, indf, featurenames, targetname, target1val, mask, reuse_split=None, score_func=None, n_folds=5, n_jobs=1):
     subdf=indf[featurenames]
-    print 'type: ',str(type(clf)).split('.')[-1].split("'")[0]
+    print('type: ',str(type(clf)).split('.')[-1].split("'")[0])
 
     Xtrain, Xtest, ytrain, ytest = X[mask], X[~mask], y[mask], y[~mask]
     #print len(Xtrain),len(ytrain)
@@ -366,11 +366,11 @@ def do_classify(clf, parameters, indf, featurenames, targetname, target1val, mas
     train_loss, test_loss = log_loss(ytrain,probs_train,labels=[0,1]),log_loss(ytest,probs_test,labels=[0,1])
     train_accuracy = clf.score(Xtrain, ytrain)
     test_accuracy = clf.score(Xtest, ytest)
-    print "############# based on standard predict ################"
-    print "Accuracy on training data: %0.2f" % (train_accuracy)
-    print "Log Loss on training data: %0.2f" % (train_loss)
-    print "Accuracy on test data:     %0.2f" % (test_accuracy)
-    print "Log Loss on test data:     %0.2f" % (test_loss)
+    print("############# based on standard predict ################")
+    print("Accuracy on training data: %0.2f" % (train_accuracy))
+    print("Log Loss on training data: %0.2f" % (train_loss))
+    print("Accuracy on test data:     %0.2f" % (test_accuracy))
+    print("Log Loss on test data:     %0.2f" % (test_loss))
     return clf, Xtrain, ytrain, Xtest, ytest
 
 def normalize_name(s,tour='atp'):
@@ -439,14 +439,14 @@ def validate_results(df,probs,lm_columns,n_splits=5):
         i+=1
 
     for j,prob_col in enumerate(probs):
-        print prob_col
-        print 'accuracy: ', np.mean(scores[j][0])
-        print 'loss: ', np.mean(scores[j][1])
+        print(prob_col)
+        print('accuracy: ', np.mean(scores[j][0]))
+        print('loss: ', np.mean(scores[j][1]))
     
     for i,cols in enumerate(lm_columns):
-        print 'lm columns: ',cols
-        print 'accuracy: ', np.mean(scores[len(probs)+i][0])
-        print 'loss: ', np.mean(scores[len(probs)+i][1])
+        print('lm columns: ',cols)
+        print('accuracy: ', np.mean(scores[len(probs)+i][0]))
+        print('loss: ', np.mean(scores[len(probs)+i][1]))
 
 # test results, given train and test dfs
 def test_results(df_train,df_test,probs,lm_columns):
@@ -455,18 +455,18 @@ def test_results(df_train,df_test,probs,lm_columns):
     
     for j,prob_col in enumerate(probs):
         y_preds = df_test[prob_col]>.5
-        print prob_col
-        print 'accuracy: ', accuracy_score(df_test['winner'],y_preds)
-        print 'loss: ', log_loss(df_test['winner'],df_test[prob_col],labels=[0,1])
+        print(prob_col)
+        print('accuracy: ', accuracy_score(df_test['winner'],y_preds))
+        print('loss: ', log_loss(df_test['winner'],df_test[prob_col],labels=[0,1]))
     
     for k,cols in enumerate(lm_columns):
         lm.fit(df_train[cols].values.reshape([df_train.shape[0],len(cols)]),df_train['winner'])
         y_preds = lm.predict(df_test[cols].values.reshape([df_test.shape[0],len(cols)]))
         y_probs = lm.predict_proba(df_test[cols].values.reshape([df_test.shape[0],len(cols)]))
 
-        print 'lm columns: ', cols
-        print 'accuracy: ', accuracy_score(df_test['winner'],y_preds)
-        print 'loss: ', log_loss(df_test['winner'],y_probs,labels=[0,1])
+        print('lm columns: ', cols)
+        print('accuracy: ', accuracy_score(df_test['winner'],y_preds))
+        print('loss: ', log_loss(df_test['winner'],y_probs,labels=[0,1]))
 
         if cols == ['elo_diff_538','sf_elo_diff_538']:
             y_logit_probs = y_probs[:,1]        
@@ -479,15 +479,15 @@ def in_dict(x,d):
 # function to cross-validate, with no match-overlap between splits (since there are 100-200
 # points per match); can use sklearn's GridSearchCV for multiple hyperparameters
 def cross_validate(val_df,clf,cols,target,hyper_parameters,n_splits):
-    print 'searching for hyperparams...'
+    print('searching for hyperparams...')
     ids = list(set(val_df['match_id']))
     vfunc = np.vectorize(in_dict)
     kfold = KFold(n_splits=n_splits,shuffle=True)
-    key = hyper_parameters.keys()[0]
+    key = list(hyper_parameters.keys())[0]
     scores = [[] for k in range(len(hyper_parameters[key]))]
     
     for train_index,____ in kfold.split(ids):
-        train_dict = dict(zip(train_index,[1]*len(train_index)))
+        train_dict = dict(list(zip(train_index,[1]*len(train_index))))
         train_ind = vfunc(np.array(val_df['match_id']),train_dict)
         test_ind = (1 - train_ind)==1
         Xtrain, ytrain = val_df[cols][train_ind], np.array(val_df[target][train_ind]).reshape([(sum(train_ind),)])
@@ -495,15 +495,15 @@ def cross_validate(val_df,clf,cols,target,hyper_parameters,n_splits):
         
         # retrieve classification score for every hyper_parameter fed into this function
         # LOOP THROUGH ALL KEYS here if you want to test multiple hyper_params
-        for j in xrange(len(hyper_parameters[key])):
+        for j in range(len(hyper_parameters[key])):
             setattr(clf,key,hyper_parameters[key][j])
             clf.fit(Xtrain,ytrain)
             score = clf.score(Xtest,ytest)
             scores[j].append(score)
     for i in range(len(scores)):
-        print hyper_parameters[key][i],': ',np.mean(scores[i])
+        print(hyper_parameters[key][i],': ',np.mean(scores[i]))
     best_ind = np.argmax([np.mean(a) for a in scores])
-    print 'best: ',{key:hyper_parameters[key][best_ind]}
+    print('best: ',{key:hyper_parameters[key][best_ind]})
     return {key:hyper_parameters[key][best_ind]}
 
 if __name__=='__main__':

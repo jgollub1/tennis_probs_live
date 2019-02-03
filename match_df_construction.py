@@ -13,7 +13,7 @@ ABD_STRINGS = ('abandoned','ABN','ABD','DEF','def','unfinished','Walkover')
 DATE = dt.now().strftime(('%m/%d/%Y'))
 
 if __name__=='__main__':
-	print 'main'
+	print('main')
 	match_df = concat_data(1968, 2018, TOUR)
 	match_df = format_match_df(match_df,TOUR,ret_strings=RET_STRINGS,abd_strings=ABD_STRINGS)
 	start_ind = match_df[match_df['match_year']>=START_YEAR-1].index[0]
@@ -25,12 +25,12 @@ if __name__=='__main__':
 	current_df = current_elo_ratings.merge(current_52_stats, on='player')
 	current_df = generate_EM_stats_current(current_df, cols=['52_s_pct','52_r_pct'])
 	current_df.to_csv(current_file_path, index=False)
-	print '{} constructed '.format(current_file_path)
+	print('{} constructed '.format(current_file_path))
 
 	match_file_path = 'match_data_constructed/match_df_{}'.format(DATE)
 	match_df = match_df[match_df['match_year']>=START_YEAR].reset_index(drop=True) # shave off prev years
 	match_df.to_csv(match_file_path, index=False)
-	print '{} constructed'.format(match_file_path)
+	print('{} constructed'.format(match_file_path))
 
 	
 
