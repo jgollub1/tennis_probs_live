@@ -83,8 +83,8 @@ def change_labels(df, cols):
     for label in ['p0','p1']:
         df[label+'_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_swon']/df[label+'_52_svpt'])]
         df[label+'_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_rwon']/df[label+'_52_rpt'])]
-        # df[label+'_sf_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_swon']/df[label+'_sf_52_svpt'])]
-        # df[label+'_sf_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_rwon']/df[label+'_sf_52_rpt'])]
+        df[label+'_sf_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_swon']/df[label+'_sf_52_svpt'])]
+        df[label+'_sf_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_rwon']/df[label+'_sf_52_rpt'])]
 
     for label in ['w', 'l']:
         df.drop([label + col for col in cols], axis=1, inplace=True)
@@ -143,11 +143,10 @@ def generate_stats(df, start_ind):
     df = generate_52_adj_stats(df,start_ind)
     df = generate_tny_stats(df,start_ind)
 
-    cols = ['_name','_elo_538','_sf_elo_538',\
-            # ,'_elo','_sf_elo'
-            # '_sf_52_swon','_sf_52_svpt','_sf_52_rwon','_sf_52_rpt'
-            '_swon', '_svpt', '_rwon', '_rpt',\
-            '_52_swon', '_52_svpt','_52_rwon','_52_rpt','_52_s_adj','_52_r_adj']
+    cols = ['_name','_elo_538','_sf_elo_538', #'_elo','_sf_elo'
+        '_sf_52_swon','_sf_52_svpt','_sf_52_rwon','_sf_52_rpt',
+        '_swon', '_svpt', '_rwon', '_rpt',
+        '_52_swon', '_52_svpt','_52_rwon','_52_rpt','_52_s_adj','_52_r_adj']
     
     df['winner'] = np.random.choice([0,1], df.shape[0])
     df = change_labels(df, cols)
@@ -197,27 +196,27 @@ def finalize_df(df):
     df['p0_s_kls_EM'] = df['tny_stats']+(df['p0_s_pct_EM']-df['avg_52_s']) - (df['p1_r_pct_EM']-df['avg_52_r'])
     df['p1_s_kls_EM'] = df['tny_stats']+(df['p1_s_pct_EM']-df['avg_52_s']) - (df['p0_r_pct_EM']-df['avg_52_r'])
     
-    # df['p0_s_sf_kls'] = df['tny_stats']+(df['p0_sf_s_pct']-df['sf_avg_52_s']) - (df['p1_sf_r_pct']-df['sf_avg_52_r'])
-    # df['p1_s_sf_kls'] = df['tny_stats']+(df['p1_sf_s_pct']-df['sf_avg_52_s']) - (df['p0_sf_r_pct']-df['sf_avg_52_r'])
+    df['p0_s_sf_kls'] = df['tny_stats']+(df['p0_sf_s_pct']-df['sf_avg_52_s']) - (df['p1_sf_r_pct']-df['sf_avg_52_r'])
+    df['p1_s_sf_kls'] = df['tny_stats']+(df['p1_sf_s_pct']-df['sf_avg_52_s']) - (df['p0_sf_r_pct']-df['sf_avg_52_r'])
     # df['p0_s_sf_kls_EM'] = df['tny_stats']+(df['p0_sf_s_pct_EM']-df['sf_avg_52_s']) - (df['p1_sf_r_pct_EM']-df['sf_avg_52_r'])
     # df['p1_s_sf_kls_EM'] = df['tny_stats']+(df['p1_sf_s_pct_EM']-df['sf_avg_52_s']) - (df['p0_sf_r_pct_EM']-df['sf_avg_52_r'])
     df['p0_s_adj_kls'] = df['tny_stats']+(df['p0_52_s_adj']) - (df['p1_52_r_adj'])
     df['p1_s_adj_kls'] = df['tny_stats']+(df['p1_52_s_adj']) - (df['p0_52_r_adj'])
-    df['p0_s_adj_kls_EM'] = df['tny_stats']+(df['p0_52_s_adj_EM']) - (df['p1_52_r_adj_EM'])
-    df['p1_s_adj_kls_EM'] = df['tny_stats']+(df['p1_52_s_adj_EM']) - (df['p0_52_r_adj_EM'])
+    # df['p0_s_adj_kls_EM'] = df['tny_stats']+(df['p0_52_s_adj_EM']) - (df['p1_52_r_adj_EM'])
+    # df['p1_s_adj_kls_EM'] = df['tny_stats']+(df['p1_52_s_adj_EM']) - (df['p0_52_r_adj_EM'])
 
     # generate match probabilities and z-scores for Klaassen method, with and w/o JS estimators
     df['match_prob_kls'] = [matchProb(row['p0_s_kls'],1-row['p1_s_kls']) for i,row in df.iterrows()]
     df['match_prob_kls_EM'] = [matchProb(row['p0_s_kls_EM'],1-row['p1_s_kls_EM']) for i,row in df.iterrows()]
-    # df['match_prob_sf_kls'] = [matchProb(row['p0_s_sf_kls'],1-row['p1_s_sf_kls']) for i,row in df.iterrows()]
+    df['match_prob_sf_kls'] = [matchProb(row['p0_s_sf_kls'],1-row['p1_s_sf_kls']) for i,row in df.iterrows()]
     # df['match_prob_sf_kls_EM'] = [matchProb(row['p0_s_sf_kls_EM'],1-row['p1_s_sf_kls_EM']) for i,row in df.iterrows()]
     df['match_prob_adj_kls'] = [matchProb(row['p0_s_adj_kls'],1-row['p1_s_adj_kls']) for i,row in df.iterrows()]
-    df['match_prob_adj_kls_EM'] = [matchProb(row['p0_s_adj_kls_EM'],1-row['p1_s_adj_kls_EM']) for i,row in df.iterrows()]
+    # df['match_prob_adj_kls_EM'] = [matchProb(row['p0_s_adj_kls_EM'],1-row['p1_s_adj_kls_EM']) for i,row in df.iterrows()]
 
     # generate win probabilities from elo differences
     df['elo_prob'] = (1+10**(df['elo_diff']/-400.))**-1
     # df['elo_prob_538'] = (1+10**(df['elo_diff_538']/-400.))**-1
-    # df['sf_elo_prob'] = [(1+10**(diff/-400.))**-1 for diff in df['sf_elo_diff']]
+    df['sf_elo_prob'] = [(1+10**(diff/-400.))**-1 for diff in df['sf_elo_diff']]
     # df['sf_elo_prob_538'] = [(1+10**(diff/-400.))**-1 for diff in df['sf_elo_diff_538']]
 
     # elo-induced serve percentages
@@ -315,10 +314,19 @@ def generate_52_stats(df,start_ind):
     # array w/ 2x1 arrays for each player's 12-month serve/return performance
     match_52_stats = np.zeros([2,len(df),4])
     avg_52_stats = np.zeros([len(df),4]) # avg tour-wide stats for serve, return
+
+    s_players_stats = {}
+    s_avg_stats = {}
+    for surface in ('Hard','Clay','Grass'):
+        s_players_stats[surface] = {}
+        s_avg_stats[surface] = stats_52((df['match_year'][0],df['match_month'][0]))
+        s_avg_stats[surface].update(start_date,(6.4,10,3.6,10))
+    s_match_52_stats = np.zeros([2,len(df),4])
+    s_avg_52_stats = np.zeros([len(df),4])
     
     w_l = ['w','l']
     for i, row in df.loc[start_ind:].iterrows():
-        # surface = row['surface']  
+        surface = row['surface']  
         date = row['match_year'],row['match_month']
 
         avg_stats.set_month(date)
@@ -335,6 +343,25 @@ def generate_52_stats(df,start_ind):
                                 row[w_l[1-k]+'_swon'],row[w_l[1-k]+'_svpt'])
                 players_stats[row[label+'_name']].update(date,match_stats)
                 avg_stats.update(date,match_stats)
+        
+        # repeat above process for surface-specific stats
+        if surface not in ('Hard','Clay','Grass'):
+            continue
+        s_avg_stats[surface].set_month(date)
+        s_avg_52_stats[i] = np.sum(s_avg_stats[surface].last_year,axis=0)
+        for k,label in enumerate(w_l):
+            if row[label+'_name'] not in s_players_stats[surface]:
+                s_players_stats[surface][row[label+'_name']] = stats_52(date)
+            
+            # store serving stats prior to match, from current month
+            s_players_stats[surface][row[label+'_name']].set_month(date)
+            s_match_52_stats[k][i] = np.sum(s_players_stats[surface][row[label+'_name']].last_year,axis=0)
+            # update serving stats if not null
+            if row[label+'_swon']==row[label+'_swon'] and row[label+'_svpt']==row[label+'_svpt']:    
+                match_stats = (row[label+'_swon'],row[label+'_svpt'],row[w_l[1-k]+'_svpt']-\
+                                row[w_l[1-k]+'_swon'],row[w_l[1-k]+'_svpt'])
+                s_players_stats[surface][row[label+'_name']].update(date,match_stats)
+                s_avg_stats[surface].update(date,match_stats)
 
     # sf_ tags are optional
     for k,label in enumerate(w_l):
@@ -342,16 +369,16 @@ def generate_52_stats(df,start_ind):
         df[label+'_52_svpt'] = match_52_stats[k][:,1]
         df[label+'_52_rwon'] = match_52_stats[k][:,2]
         df[label+'_52_rpt'] = match_52_stats[k][:,3]
-        # df[label+'_sf_52_swon'] = s_match_52_stats[k][:,0]
-        # df[label+'_sf_52_svpt'] = s_match_52_stats[k][:,1]
-        # df[label+'_sf_52_rwon'] = s_match_52_stats[k][:,2]
-        # df[label+'_sf_52_rpt'] = s_match_52_stats[k][:,3]
+        df[label+'_sf_52_swon'] = s_match_52_stats[k][:,0]
+        df[label+'_sf_52_svpt'] = s_match_52_stats[k][:,1]
+        df[label+'_sf_52_rwon'] = s_match_52_stats[k][:,2]
+        df[label+'_sf_52_rpt'] = s_match_52_stats[k][:,3]
 
     with np.errstate(divide='ignore', invalid='ignore'):
         df['avg_52_s'] = np.divide(avg_52_stats[:,0],avg_52_stats[:,1])
         df['avg_52_r'] = np.divide(avg_52_stats[:,2],avg_52_stats[:,3])
-        # df['sf_avg_52_s'] = np.divide(s_avg_52_stats[:,0],s_avg_52_stats[:,1])
-        # df['sf_avg_52_r'] = np.divide(s_avg_52_stats[:,2],s_avg_52_stats[:,3])
+        df['sf_avg_52_s'] = np.divide(s_avg_52_stats[:,0],s_avg_52_stats[:,1])
+        df['sf_avg_52_r'] = np.divide(s_avg_52_stats[:,2],s_avg_52_stats[:,3])
     return df
 
 '''
