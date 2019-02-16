@@ -10,7 +10,7 @@ import tennisMatchProbability
 import tennisSetProbability
 import tennisTiebreakProbability
 from tennisMatchProbability import matchProb
-from helper_functions import adj_stats_52, stats_52, tny_52, normalize_name
+from helper_functions import stats_52, adj_stats_52, commop_stats_52, tny_52, normalize_name
 from sklearn import linear_model
 
 # TO DO: add switches or global indicators for surface stats
@@ -473,6 +473,93 @@ def generate_52_adj_stats(df,start_ind=0):
         df[label+'_52_s_adj'] = match_52_stats[k][:,0]
         df[label+'_52_r_adj'] = match_52_stats[k][:,1]
     return df
+
+
+'''
+generate delta between two players relative to shared opponent
+delta_i^AB = (spw(A, C_i) - (1 - rpw(A, C_i))) - (spw(B, C_i) - (1 - rpw(B, C_i)))
+'''
+def generate_delta(p1_stats, p2_stats):
+    p1_s_pct, p1_r_pct = p1_stats[0]/float(p1_stats[1]), p1_stats[2]/float(p1_stats[3])
+    p2_s_pct, p2_r_pct = p2_stats[0]/float(p2_stats[1]), p2_stats[2]/float(p2_stats[3])
+    return (p1_s_pct - (1 - p1_r_pct)) - (p2_s_pct - (1 - p2_r_pct))
+
+'''
+return true if total service/return points both greater than zero
+'''
+def has_stats(last_year_stats):
+    return last_year_stats[1] > 0 and last_year_stats[3] > 0
+
+'''
+get opponents who have played a match in the past 12 months (more than 0 points)
+'''
+def get_opponents(player_d, player_name):
+    historical_opponents = player_d[player_name].last_year.keys()
+    return [opp for opp in historical_opponents if has_stats(np.sum(player_d[player_name].last_year[opp], axis=0))]
+
+'''
+compute serve/return parameters, given their common opponent history
+'''
+def generate_commop_params(player_d, player1, player2):
+    p1_opponents, p2_opponents = get_opponents(player_d, player1), get_opponents(player_d, player2)
+    common_opponents = np.intersect1d(p1_opponents, p2_opponents)
+    if len(common_opponents) == 0:
+        return .6, .4
+
+    match_deltas = np.zeros(len(common_opponents))
+    for i, comm_op in enumerate(common_opponents):
+        p1_match_stats = np.sum(player_d[player1].last_year[comm_op], axis=0)
+        p2_match_stats = np.sum(player_d[player2].last_year[comm_op], axis=0)
+        comm_op_delta = generate_delta(p1_match_stats, p2_match_stats)
+        match_deltas[i] = comm_op_delta
+        if np.isnan(comm_op_delta):
+            print 'nan here: ', p1_match_stats, p2_match_stats, comm_op
+
+    overall_delta = np.mean(match_deltas)
+    if np.isnan(overall_delta):
+        print 'nan, match_deltas: ', match_deltas
+    return (.6 + overall_delta/2), (.4 + overall_delta/2)
+
+'''
+collect 12-month s/r common-opponent performance by player (TODO: get rid of start_ind as input and filter before
+passing to this function)
+'''
+def generate_52_commop_stats(df, start_ind):
+    player_d = {}
+    start_date = (df['match_year'][start_ind], df['match_month'][start_ind])
+    # array w/ 2x1 arrays for each player's 12-month serve/return performance
+    match_52_stats = np.zeros([2,len(df), 2])
+
+    w_l = ['w','l']
+    for i, row in df.loc[start_ind:].iterrows():
+        date = row['match_year'], row['match_month']
+
+        for k, label in enumerate(w_l):
+            opponent_name = row[w_l[1-k]+'_name']
+            if row[label+'_name'] not in player_d:
+                player_d[row[label+'_name']] = commop_stats_52(date)
+
+            # can update player objs before calculating params since players cannot share
+            # each other as common opponents
+            if row[label+'_swon']==row[label+'_swon'] and row[label+'_svpt']==row[label+'_svpt']:
+                match_stats = (row[label+'_swon'],row[label+'_svpt'],row[w_l[1-k]+'_svpt']-\
+                                row[w_l[1-k]+'_swon'],row[w_l[1-k]+'_svpt'])
+                player_d[row[label+'_name']].update(date, match_stats, opponent_name)
+
+        # can compute common-opponent stats after current match stats inputted
+        # (since this won't affect common opponents)
+        w_s_pct, w_r_pct = generate_commop_params(player_d, row['w_name'], row['l_name'])
+
+        match_52_stats[0][i] = [w_s_pct, w_r_pct]
+        match_52_stats[1][i] = [1 - w_r_pct, 1 - w_s_pct]
+
+    for k,label in enumerate(w_l):
+        df[label+'_52_commop_s_pct'] = match_52_stats[k][:,0]
+        df[label+'_52_commop_r_pct'] = match_52_stats[k][:,1]
+
+    return df
+
+
 
 '''
 collect yearly tournament serve averages for 'f_av'
