@@ -23,7 +23,10 @@ def concat_data(start_y, end_y, tour):
     atp_year_list = []
     for i in xrange(start_y, end_y+1):
         f_name = "match_data/"+tour+"_matches_{0}.csv".format(i)
-        atp_year_list.append(pd.read_csv(f_name))
+        try:
+            atp_year_list.append(pd.read_csv(f_name))
+        except:
+            print 'could not find file for year: ', i
     return pd.concat(atp_year_list, ignore_index = True)
 
 '''
@@ -225,16 +228,46 @@ def finalize_df(df):
     # df = generate_elo_induced_s(df, 'logit_elo_538',start_ind=0)
     return df
 
+# '''
+# returns two dataframes
+# 1) contains up-to-date player stats through date of most recent match
+# 2) contains every match with elo/serve/return/etc stats
+# '''
+# def generate_dfs(df, start_ind, counts_i):
+#     current_elo_ratings, df = generate_elo(df, counts_i)
+#     current_52_stats = get_current_52_stats(match_df, start_ind)
+#     current_df = current_elo_ratings.merge(current_52_stats, on='player')
+# 	current_df = generate_EM_stats_current(current_df, cols=['52_s_pct','52_r_pct'])
+
+#     df = generate_stats(df, start_ind) # 52, adj, tny, etc.
+#     df = finalize_df(df)
+#     df = df.reset_index(drop=True)
+#     return current_df, df
+
+def get_start_ind(match_df, start_year):
+    return match_df[match_df['match_year']>=start_year-1].index[0]
+
 '''
 returns two dataframes
 1) contains up-to-date player stats through date of most recent match
 2) contains every match with elo/serve/return/etc stats
 '''
-def generate_dfs(df, counts_i, start_ind):
-    active_df, df = generate_elo(df, counts_i)
+def generate_dfs(date, tour, start_year, ret_strings, abd_strings, counts_538):
+    current_year = int(date.split('_')[-1])
+    match_df = concat_data(1968, current_year, tour)
+    match_df = format_match_df(match_df, tour, ret_strings, abd_strings)
+    start_ind = match_df[match_df['match_year']>=start_year-1].index[0]
+    current_df, match_df = generate_dfs(match_df, start_ind, COUNTS_538)
+
+    current_elo_ratings, df = generate_elo(df, counts_i)
+    current_52_stats = get_current_52_stats(match_df, start_ind)
+    current_df = current_elo_ratings.merge(current_52_stats, on='player')
+    current_df = generate_EM_stats_current(current_df, cols=['52_s_pct','52_r_pct'])
+
     df = generate_stats(df, start_ind) # 52, adj, tny, etc.
     df = finalize_df(df)
-    return active_df, df
+    df = df.reset_index(drop=True)
+    return current_df, df
 
 '''
 iterate through every historical match, providing
