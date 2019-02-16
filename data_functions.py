@@ -10,7 +10,7 @@ import tennisMatchProbability
 import tennisSetProbability
 import tennisTiebreakProbability
 from tennisMatchProbability import matchProb
-from helper_functions import stats_52, adj_stats_52, commop_stats_52, tny_52, normalize_name
+from data_classes import stats_52, adj_stats_52, commop_stats_52, tny_52
 from sklearn import linear_model
 
 # TO DO: add switches or global indicators for surface stats
@@ -28,6 +28,29 @@ def concat_data(start_y, end_y, tour):
         except:
             print 'could not find file for year: ', i
     return pd.concat(atp_year_list, ignore_index = True)
+
+'''
+clean up mispellings in datasets. specific to atp/wta tours
+'''
+def normalize_name(s, tour='atp'):
+    if tour=='atp':
+        s = s.replace('-',' ')
+        s = s.replace('Stanislas','Stan').replace('Stan','Stanislas')
+        s = s.replace('Alexandre','Alexander')
+        s = s.replace('Federico Delbonis','Federico Del').replace('Federico Del','Federico Delbonis')
+        s = s.replace('Mello','Melo')
+        s = s.replace('Cedric','Cedrik')
+        s = s.replace('Bernakis','Berankis')
+        s = s.replace('Hansescu','Hanescu')
+        s = s.replace('Teimuraz','Teymuraz')
+        s = s.replace('Vikor','Viktor')
+        s = s.rstrip()
+        s = s.replace('Alex Jr.','Alex Bogomolov')
+        s = s.title()
+        sep = s.split(' ')
+        return ' '.join(sep[:2]) if len(sep)>2 else s
+    else:
+        return s
 
 '''
 data cleaning and formatting
@@ -257,16 +280,15 @@ def generate_dfs(date, tour, start_year, ret_strings, abd_strings, counts_538):
     match_df = concat_data(1968, current_year, tour)
     match_df = format_match_df(match_df, tour, ret_strings, abd_strings)
     start_ind = match_df[match_df['match_year']>=start_year-1].index[0]
-    current_df, match_df = generate_dfs(match_df, start_ind, COUNTS_538)
+    current_elo_ratings, match_df = generate_elo(match_df, counts_538)
 
-    current_elo_ratings, df = generate_elo(df, counts_i)
-    current_52_stats = get_current_52_stats(match_df, start_ind)
+    match_df = generate_stats(match_df, start_ind) # 52, adj, tny, etc.
+    match_df = finalize_df(match_df)
+    match_df = match_df.reset_index(drop=True)
+
+    current_52_stats = get_current_52_stats(match_df, start_ind=0)
     current_df = current_elo_ratings.merge(current_52_stats, on='player')
     current_df = generate_EM_stats_current(current_df, cols=['52_s_pct','52_r_pct'])
-
-    df = generate_stats(df, start_ind) # 52, adj, tny, etc.
-    df = finalize_df(df)
-    df = df.reset_index(drop=True)
     return current_df, df
 
 '''

@@ -9,124 +9,6 @@ from collections import defaultdict
 PBP_COLS = ['sets_0','sets_1','games_0','games_1','points_0','points_1','tp_0','tp_1','p0_swp','p0_sp','p1_swp','p1_sp','server']
 
 '''
-tracking object for player's year-long performance over time
-accepts dates in (year,month)
-last_year contains last 12 months stats, most recent to least
-'''
-class stats_52():
-    def __init__(self,date):
-        self.most_recent = date
-        self.last_year = np.zeros([12,4])
-
-    def time_diff(self,new_date,old_date):
-        return 12*(new_date[0]-old_date[0])+(new_date[1]-old_date[1])
-
-    def set_month(self,match_date):
-        diff = self.time_diff(match_date,self.most_recent)
-        if diff>=12:
-            self.last_year = np.zeros([12,4])
-        elif diff>0:
-            self.last_year[diff:] = self.last_year[:12-diff]; self.last_year[:diff] = 0
-        self.most_recent = match_date
-
-    def update(self,match_date,match_stats):
-        self.set_month(match_date)
-        self.last_year[0] = self.last_year[0]+match_stats
-
-'''
-tracking object for opponent-adjusted ratings
-stores opponent ability at time of match to compare performance against
-'''
-class adj_stats_52():
-    def __init__(self,date):
-        self.most_recent = date
-        self.last_year = np.zeros([12,6])
-        self.adj_sr = [0,0]
-
-    def time_diff(self,new_date,old_date):
-        return 12*(new_date[0]-old_date[0])+(new_date[1]-old_date[1])
-
-    def set_month(self,match_date):
-        diff = self.time_diff(match_date,self.most_recent)
-        if diff>=12:
-            self.last_year = np.zeros([12,6])
-        elif diff>0:
-            self.last_year[diff:] = self.last_year[:12-diff]; self.last_year[:diff] = 0
-        self.most_recent = match_date
-        self.update_adj_sr()
-
-    def update(self,match_date,match_stats):
-        self.set_month(match_date)
-        self.last_year[0] = self.last_year[0]+match_stats
-        self.update_adj_sr()
-
-    # update the player's adjust serve/return ability, based on last twelve months
-    def update_adj_sr(self):
-        s_pt, r_pt = np.sum(self.last_year[:,1]), np.sum(self.last_year[:,3])
-        if s_pt==0 or r_pt==0:
-            self.adj_sr = [0,0]
-            return
-        with np.errstate(divide='ignore', invalid='ignore'):
-            f_i = np.sum(self.last_year[:,0])/s_pt
-            f_adj = 1 - np.sum(self.last_year[:,4])/s_pt
-            g_i = np.sum(self.last_year[:,2])/r_pt
-            g_adj = 1 - np.sum(self.last_year[:,5])/r_pt
-        self.adj_sr[0] = f_i - f_adj
-        self.adj_sr[1] = g_i - g_adj
-
-
-'''
-tracking object for yearly tournament averages
-'''
-class tny_52():
-    def __init__(self,date):
-        self.most_recent = date
-        self.tny_stats = np.zeros([2,2])
-        self.historical_avgs = {}
-
-    def update(self,match_year,match_stats):
-        diff = match_year-self.most_recent
-        if diff>=2:
-            self.tny_stats = np.zeros([2,2])
-        elif diff==1:
-            self.tny_stats[1] = self.tny_stats[0]; self.tny_stats[0]=0
-        self.tny_stats[0] = self.tny_stats[0]+match_stats
-        self.most_recent = match_year
-        self.historical_avgs[match_year] = (self.tny_stats[0][0],self.tny_stats[0][1])
-        return 0 if self.tny_stats[1][1]==0 else self.tny_stats[1][0]/float(self.tny_stats[1][1])
-
-'''
-tracking object for common-opponent ratings
-stores past year of performance against opponents
-'''
-class commop_stats_52():
-    def __init__(self, date):
-        self.last_year = defaultdict(lambda: np.zeros([12, 4]))
-        self.most_recent = date;
-
-    def time_diff(self, new_date, old_date):
-        return 12*(new_date[0]-old_date[0])+(new_date[1]-old_date[1])
-
-    # TODO: update data for every single opponent, just the one being played (otherwise data )
-    def update_player_stats(self, match_date, opponent_name):
-        diff = self.time_diff(match_date, self.most_recent)
-        if diff>=12:
-            self.last_year[opponent_name] = np.zeros([12,4])
-        elif diff>0:
-            self.last_year[opponent_name][diff:] = self.last_year[opponent_name][:12-diff]
-            self.last_year[opponent_name][:diff] = 0
-
-    def update_player_histories(self, match_date, opponent_name):
-        for opp_name in np.union1d(opponent_name, self.last_year.keys()):
-            self.update_player_stats(match_date, opp_name)
-
-        self.most_recent = match_date
-
-    def update(self, match_date, match_stats, opponent_name):
-        self.update_player_histories(match_date, opponent_name)
-        self.last_year[opponent_name][0] = self.last_year[opponent_name][0]+match_stats
-
-'''
 v3.0 with smarter object construction
 use np.array to create arrays from lists; use np.concatenate to combine arrays
 figuring out the last three lines here made my function about four times faster...
@@ -271,6 +153,7 @@ def simplify(s):
     s=s.replace('A','S');s=s.replace('D','R')
     sets = s.split('.')
     literal_s=''
+    next_server = 0
     for k in range(len(sets)):
         # set server to 0 or 1 at beginning of set, keeping track of all transitions
         server = 0 if k==0 else next_server
@@ -403,26 +286,6 @@ def do_classify(clf, parameters, indf, featurenames, targetname, target1val, mas
     print "Accuracy on test data:     %0.2f" % (test_accuracy)
     print "Log Loss on test data:     %0.2f" % (test_loss)
     return clf, Xtrain, ytrain, Xtest, ytest
-
-def normalize_name(s,tour='atp'):
-    if tour=='atp':
-        s = s.replace('-',' ')
-        s = s.replace('Stanislas','Stan').replace('Stan','Stanislas')
-        s = s.replace('Alexandre','Alexander')
-        s = s.replace('Federico Delbonis','Federico Del').replace('Federico Del','Federico Delbonis')
-        s = s.replace('Mello','Melo')
-        s = s.replace('Cedric','Cedrik')
-        s = s.replace('Bernakis','Berankis')
-        s = s.replace('Hansescu','Hanescu')
-        s = s.replace('Teimuraz','Teymuraz')
-        s = s.replace('Vikor','Viktor')
-        s = s.rstrip()
-        s = s.replace('Alex Jr.','Alex Bogomolov')
-        s = s.title()
-        sep = s.split(' ')
-        return ' '.join(sep[:2]) if len(sep)>2 else s
-    else:
-        return s
 
 def break_point(s):
     s=s.replace('A','S');s=s.replace('D','R')
