@@ -251,22 +251,6 @@ def finalize_df(df):
     # df = generate_elo_induced_s(df, 'logit_elo_538',start_ind=0)
     return df
 
-# '''
-# returns two dataframes
-# 1) contains up-to-date player stats through date of most recent match
-# 2) contains every match with elo/serve/return/etc stats
-# '''
-# def generate_dfs(df, start_ind, counts_i):
-#     current_elo_ratings, df = generate_elo(df, counts_i)
-#     current_52_stats = get_current_52_stats(match_df, start_ind)
-#     current_df = current_elo_ratings.merge(current_52_stats, on='player')
-# 	current_df = generate_EM_stats_current(current_df, cols=['52_s_pct','52_r_pct'])
-
-#     df = generate_stats(df, start_ind) # 52, adj, tny, etc.
-#     df = finalize_df(df)
-#     df = df.reset_index(drop=True)
-#     return current_df, df
-
 def get_start_ind(match_df, start_year):
     return match_df[match_df['match_year']>=start_year-1].index[0]
 
@@ -289,7 +273,7 @@ def generate_dfs(date, tour, start_year, ret_strings, abd_strings, counts_538):
     current_52_stats = get_current_52_stats(match_df, start_ind=0)
     current_df = current_elo_ratings.merge(current_52_stats, on='player')
     current_df = generate_EM_stats_current(current_df, cols=['52_s_pct','52_r_pct'])
-    return current_df, df
+    return current_df, match_df
 
 '''
 iterate through every historical match, providing
@@ -300,7 +284,7 @@ generates two dataframes
    (through input df's most recent match)
 ** considers surface ratings as well
 '''
-def generate_elo(df, counts_i):
+def generate_elo(df, counts_538):
     players_list = np.union1d(df.w_name, df.l_name)
     player_count = len(players_list)
     initial_elos = [elo.Rating() for __ in range(player_count)]
@@ -330,13 +314,13 @@ def generate_elo(df, counts_i):
         active_players[current_month].add(l_name)
         elo_1s.append(w_elo.value)
         elo_2s.append(l_elo.value)
-        elo_obj.rate_1vs1(w_elo,l_elo,is_gs,counts_i)
+        elo_obj.rate_1vs1(w_elo,l_elo,is_gs,counts_538)
 
         if sf in ('Hard','Clay','Grass'):
             w_sf_elo,l_sf_elo = sf_elo[sf][w_name],sf_elo[sf][l_name]
             sf_elo_1s.append(w_sf_elo.value)
             sf_elo_2s.append(l_sf_elo.value)
-            elo_obj.rate_1vs1(w_sf_elo,l_sf_elo,is_gs,counts_i)
+            elo_obj.rate_1vs1(w_sf_elo,l_sf_elo,is_gs,counts_538)
         else:
             sf_elo_1s.append(w_elo.value)
             sf_elo_2s.append(l_elo.value)
@@ -353,7 +337,7 @@ def generate_elo(df, counts_i):
     active_df.columns = ['player', 'elo', 'hard_elo', 'clay_elo', 'grass_elo']
     active_df = active_df.sort_values(by=['elo'], ascending=False)
 
-    tag = '_538' if counts_i else ''
+    tag = '_538' if counts_538 else ''
     df['w_elo'+tag], df['l_elo'+tag] = elo_1s, elo_2s
     df['w_sf_elo'+tag], df['l_sf_elo'+tag] = sf_elo_1s, sf_elo_2s
     return active_df, df
