@@ -1,18 +1,11 @@
 import os
 import sys
-from datetime import timedelta, datetime as dt
+from globals import *
 from helper_functions import *
 from data_functions import *
 
 pd.options.mode.chained_assignment = None
 sys.path.insert(0, '{}/sackmann'.format(os.getcwd()))
-DATE = (dt.now() + timedelta(days=1)).strftime(('%m_%d_%Y'))
-TOUR = 'atp'
-START_YEAR = 2010
-RET_STRINGS = ('ABN', 'DEF', 'In Progress', 'RET', 'W/O', ' RET', ' W/O', 'nan', 'walkover')
-ABD_STRINGS = ('abandoned', 'ABN', 'ABD', 'DEF', 'def', 'unfinished', 'Walkover')
-COUNTS_538 = 1
-
 
 if __name__=='__main__':
 	print 'main: ', os.getcwd()

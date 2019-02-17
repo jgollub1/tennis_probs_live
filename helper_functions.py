@@ -1,12 +1,13 @@
 import math
 import numpy as np
 import pandas as pd
+from globals import PBP_COLS
 from sklearn import linear_model
 from sklearn.model_selection import KFold
 from sklearn.metrics import log_loss,accuracy_score
 from collections import defaultdict
 
-PBP_COLS = ['sets_0','sets_1','games_0','games_1','points_0','points_1','tp_0','tp_1','p0_swp','p0_sp','p1_swp','p1_sp','server']
+
 
 '''
 v3.0 with smarter object construction
