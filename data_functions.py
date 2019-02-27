@@ -98,6 +98,7 @@ def format_match_df(df,tour,ret_strings=[],abd_strings=[]):
 original dataset labels columns by 'w_'/'l_'
 randomly assigning 'w'/'l' to 'p0','p1'
 '''
+# TODO: refactor this into two functions
 def change_labels(df, cols):
     # change w,l TO p0,p1
     for col in cols:
@@ -116,6 +117,22 @@ def change_labels(df, cols):
         df.drop([label + col for col in cols], axis=1, inplace=True)
 
     df['tny_name'] = [s if s==s else 'Davis Cup' for s in df['tny_name']]
+    return df
+
+'''
+original dataset labels columns by 'w_'/'l_'
+randomly assigning 'w'/'l' to 'p0','p1'
+(without extra formatting)
+'''
+def change_labels_v2(df, cols):
+    # change w,l TO p0,p1
+    for col in cols:
+        df['p0'+col] = [df['l'+col][i] if df['winner'][i] else df['w'+col][i] for i in xrange(len(df))]
+        df['p1'+col] = [df['w'+col][i] if df['winner'][i] else df['l'+col][i] for i in xrange(len(df))]
+
+    for label in ['w', 'l']:
+        df.drop([label + col for col in cols], axis=1, inplace=True)
+
     return df
 
 '''
@@ -171,12 +188,14 @@ def generate_stats(df, start_ind):
     df = generate_52_commop_stats(df, start_ind)
 
     cols = ['_name','_elo_538','_sf_elo_538', #'_elo','_sf_elo'
-        '_sf_52_swon','_sf_52_svpt','_sf_52_rwon','_sf_52_rpt',
         '_swon', '_svpt', '_rwon', '_rpt',
-        '_52_swon', '_52_svpt','_52_rwon','_52_rpt','_52_s_adj','_52_r_adj']
+        '_52_swon', '_52_svpt','_52_rwon','_52_rpt',
+        '_sf_52_swon','_sf_52_svpt','_sf_52_rwon','_sf_52_rpt',
+        '_52_s_adj','_52_r_adj']
 
     df['winner'] = np.random.choice([0,1], df.shape[0])
     df = change_labels(df, cols)
+    df = change_labels_v2(df, ['_52_commop_s_pct', '_52_commop_r_pct'])
 
     df['elo_diff'] = df['p0_elo_538'] - df['p1_elo_538']
     df['sf_elo_diff'] = df['p0_sf_elo_538'] - df['p1_sf_elo_538']
@@ -186,7 +205,7 @@ def generate_stats(df, start_ind):
     # df = df.reset_index(drop=True)
     # cols = ['52_s_adj','52_r_adj']
 
-    em_cols = ['s_pct', 'r_pct', '52_s_adj', '52_r_adj']
+    em_cols = ['s_pct', 'r_pct', 'sf_s_pct', 'sf_r_pct', '52_s_adj', '52_r_adj']
     df = generate_sr_pct(df)
 
     # FIX for correct em stat sample sizes
@@ -201,21 +220,23 @@ def generate_sr_pct(df):
     p_hat = np.sum([df['p0_52_swon'],df['p1_52_swon']])
     p_hat = p_hat/np.sum([df['p0_52_svpt'],df['p1_52_svpt']])
     for label in ['p0','p1']:
-        # df[label+'_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_swon']/df[label+'_52_svpt'])]
-        # df[label+'_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_rwon']/df[label+'_52_rpt'])]
+        # divide with np.nan_to_num and use p_hat as a placeholder when n=0
         df[label+'_s_pct'] = np.nan_to_num(df[label+'_52_swon']/df[label+'_52_svpt'])
-        df[label+'_r_pct'] = np.nan_to_num(df[label+'_52_rwon']/df[label+'_52_rpt'])
         df[label+'_s_pct'] = df[label+'_s_pct'] + (p_hat) * (df[label+'_s_pct'] == 0)
+        df[label+'_r_pct'] = np.nan_to_num(df[label+'_52_rwon']/df[label+'_52_rpt'])
         df[label+'_r_pct'] = df[label+'_r_pct'] + (1-p_hat)*(df[label+'_r_pct'] == 0)
-        # df[label+'_sf_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_swon']/df[label+'_sf_52_svpt'])]
-        # df[label+'_sf_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_rwon']/df[label+'_sf_52_rpt'])]
+
+        df[label+'_sf_s_pct'] = np.nan_to_num(df[label+'_sf_52_swon']/df[label+'_sf_52_svpt'])
+        df[label+'_sf_s_pct'] = df[label+'_sf_s_pct'] + (p_hat) * (df[label+'_sf_s_pct'] == 0)
+        df[label+'_sf_r_pct'] = np.nan_to_num(df[label+'_sf_52_rwon']/df[label+'_sf_52_rpt'])
+        df[label+'_sf_r_pct'] = df[label+'_sf_r_pct'] + (1-p_hat)*(df[label+'_sf_r_pct'] == 0)
 
         # finally, generate the observed service percentages in each match
         df[label+'_s_pct_obsv'] = np.nan_to_num(df[label+'_swon']/df[label+'_svpt'])
     return df
 
 def finalize_df(df):
-    # generate serving probabilities for Klaassen-Magnus model
+    # generate serving probabilities for Barnett-Clarke model
     df['match_id'] = range(len(df))
     df['tny_stats'] = [df['avg_52_s'][i] if df['tny_stats'][i]==0 else df['tny_stats'][i] for i in xrange(len(df))]
     df['p0_s_kls'] = df['tny_stats']+(df['p0_s_pct']-df['avg_52_s']) - (df['p1_r_pct']-df['avg_52_r'])
@@ -225,20 +246,29 @@ def finalize_df(df):
 
     df['p0_s_sf_kls'] = df['tny_stats']+(df['p0_sf_s_pct']-df['sf_avg_52_s']) - (df['p1_sf_r_pct']-df['sf_avg_52_r'])
     df['p1_s_sf_kls'] = df['tny_stats']+(df['p1_sf_s_pct']-df['sf_avg_52_s']) - (df['p0_sf_r_pct']-df['sf_avg_52_r'])
-    # df['p0_s_sf_kls_EM'] = df['tny_stats']+(df['p0_sf_s_pct_EM']-df['sf_avg_52_s']) - (df['p1_sf_r_pct_EM']-df['sf_avg_52_r'])
-    # df['p1_s_sf_kls_EM'] = df['tny_stats']+(df['p1_sf_s_pct_EM']-df['sf_avg_52_s']) - (df['p0_sf_r_pct_EM']-df['sf_avg_52_r'])
+    df['p0_s_sf_kls_EM'] = df['tny_stats']+(df['p0_sf_s_pct_EM']-df['sf_avg_52_s']) - (df['p1_sf_r_pct_EM']-df['sf_avg_52_r'])
+    df['p1_s_sf_kls_EM'] = df['tny_stats']+(df['p1_sf_s_pct_EM']-df['sf_avg_52_s']) - (df['p0_sf_r_pct_EM']-df['sf_avg_52_r'])
+
     df['p0_s_adj_kls'] = df['tny_stats']+(df['p0_52_s_adj']) - (df['p1_52_r_adj'])
     df['p1_s_adj_kls'] = df['tny_stats']+(df['p1_52_s_adj']) - (df['p0_52_r_adj'])
-    # df['p0_s_adj_kls_EM'] = df['tny_stats']+(df['p0_52_s_adj_EM']) - (df['p1_52_r_adj_EM'])
-    # df['p1_s_adj_kls_EM'] = df['tny_stats']+(df['p1_52_s_adj_EM']) - (df['p0_52_r_adj_EM'])
+    df['p0_s_adj_kls_EM'] = df['tny_stats']+(df['p0_52_s_adj_EM']) - (df['p1_52_r_adj_EM'])
+    df['p1_s_adj_kls_EM'] = df['tny_stats']+(df['p1_52_s_adj_EM']) - (df['p0_52_r_adj_EM'])
 
-    # generate match probabilities and z-scores for Klaassen method, with and w/o JS estimators
+    df['p0_s_commop_kls'] = df['tny_stats']+(df['p0_52_commop_s_pct'] - df['avg_52_s']) - (df['p1_52_commop_r_pct'] - df['avg_52_r'])
+    df['p1_s_commop_kls'] = df['tny_stats']+(df['p1_52_commop_s_pct'] - df['avg_52_s']) - (df['p0_52_commop_r_pct'] - df['avg_52_r'])
+
+    p_hat = np.sum([df['p0_52_swon'],df['p1_52_swon']])/np.sum([df['p0_52_svpt'],df['p1_52_svpt']])
+    df['p0_s_baseline'] = p_hat
+    df['p1_s_baseline'] = p_hat
+
+    # generate match probabilities for Barnett-Clarke method, with or w/o EM estimators
     df['match_prob_kls'] = [matchProb(row['p0_s_kls'],1-row['p1_s_kls']) for i,row in df.iterrows()]
     df['match_prob_kls_EM'] = [matchProb(row['p0_s_kls_EM'],1-row['p1_s_kls_EM']) for i,row in df.iterrows()]
     df['match_prob_sf_kls'] = [matchProb(row['p0_s_sf_kls'],1-row['p1_s_sf_kls']) for i,row in df.iterrows()]
-    # df['match_prob_sf_kls_EM'] = [matchProb(row['p0_s_sf_kls_EM'],1-row['p1_s_sf_kls_EM']) for i,row in df.iterrows()]
+    df['match_prob_sf_kls_EM'] = [matchProb(row['p0_s_sf_kls_EM'],1-row['p1_s_sf_kls_EM']) for i,row in df.iterrows()]
     df['match_prob_adj_kls'] = [matchProb(row['p0_s_adj_kls'],1-row['p1_s_adj_kls']) for i,row in df.iterrows()]
-    # df['match_prob_adj_kls_EM'] = [matchProb(row['p0_s_adj_kls_EM'],1-row['p1_s_adj_kls_EM']) for i,row in df.iterrows()]
+    df['match_prob_adj_kls_EM'] = [matchProb(row['p0_s_adj_kls_EM'],1-row['p1_s_adj_kls_EM']) for i,row in df.iterrows()]
+    df['match_prob_commop_kls'] = [matchProb(row['p0_s_commop_kls'],1-row['p1_s_commop_kls']) for i,row in df.iterrows()]
 
     # generate win probabilities from elo differences
     df['elo_prob'] = (1+10**(df['elo_diff']/-400.))**-1
@@ -403,7 +433,6 @@ def generate_52_stats(df,start_ind):
                 s_players_stats[surface][row[label+'_name']].update(date,match_stats)
                 s_avg_stats[surface].update(date,match_stats)
 
-    # sf_ tags are optional
     for k,label in enumerate(w_l):
         df[label+'_52_swon'] = match_52_stats[k][:,0]
         df[label+'_52_svpt'] = match_52_stats[k][:,1]
@@ -431,8 +460,9 @@ def generate_EM_stats(df,cols):
         stat_history = np.concatenate([df['p0_'+col],df['p1_'+col]],axis=0)
         n = len(stat_history)/2
         group_var = np.var(stat_history)
-        sr_col = 'svpt' if '_s_' in col else 'rpt'
-        num_points = np.concatenate([df['p0_52_'+sr_col],df['p1_52_'+sr_col]])
+        prefix = 'sf_52_' if 'sf' in col else '52_'
+        suffix = 'svpt' if '_s_' in col else 'rpt'
+        num_points = np.concatenate([df['p0_'+prefix+suffix],df['p1_'+prefix+suffix]])
         p_hat = np.mean(stat_history)
         sigma2_i = np.divide(p_hat*(1-p_hat),num_points,where=num_points>0)
         tau2_hat = np.nanvar(stat_history)
@@ -444,7 +474,6 @@ def generate_EM_stats(df,cols):
         df['p1_'+col+'_EM'] = df['p1_'+col]+B_i[n:]*(p_hat-df['p1_'+col])
         print col, p_hat
     return df # ok if p_hats don't add up because they're avg of averages
-
 
 '''
 Efron-Morris estimators for 52-week serve and return percentages
