@@ -69,6 +69,17 @@ class adj_stats_52():
 
 '''
 tracking object for common-opponent ratings
+stores all historical performance against opponents
+'''
+class commop_stats():
+    def __init__(self):
+        self.history = defaultdict(lambda: np.zeros(4))
+
+    def update(self, match_stats, opponent_name):
+        self.history[opponent_name] += match_stats
+
+'''
+tracking object for common-opponent ratings
 stores past year of performance against opponents
 '''
 class commop_stats_52():

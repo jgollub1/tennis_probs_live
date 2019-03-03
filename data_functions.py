@@ -10,8 +10,10 @@ import tennisMatchProbability
 import tennisSetProbability
 import tennisTiebreakProbability
 from tennisMatchProbability import matchProb
-from data_classes import stats_52, adj_stats_52, commop_stats_52, tny_52
+from data_classes import stats_52, adj_stats_52, commop_stats, tny_52
 from sklearn import linear_model
+
+pd.options.mode.chained_assignment = None
 
 # TO DO: add switches or global indicators for surface stats
 
@@ -185,7 +187,7 @@ def generate_stats(df, start_ind):
     df = generate_52_stats(df,start_ind)
     df = generate_52_adj_stats(df,start_ind)
     df = generate_tny_stats(df,start_ind)
-    df = generate_52_commop_stats(df, start_ind)
+    df = generate_commop_stats(df, start_ind)
 
     cols = ['_name','_elo_538','_sf_elo_538', #'_elo','_sf_elo'
         '_swon', '_svpt', '_rwon', '_rpt',
@@ -195,7 +197,7 @@ def generate_stats(df, start_ind):
 
     df['winner'] = np.random.choice([0,1], df.shape[0])
     df = change_labels(df, cols)
-    df = change_labels_v2(df, ['_52_commop_s_pct', '_52_commop_r_pct'])
+    df = change_labels_v2(df, ['_commop_s_pct', '_commop_r_pct'])
 
     df['elo_diff'] = df['p0_elo_538'] - df['p1_elo_538']
     df['sf_elo_diff'] = df['p0_sf_elo_538'] - df['p1_sf_elo_538']
@@ -254,8 +256,8 @@ def finalize_df(df):
     df['p0_s_adj_kls_EM'] = df['tny_stats']+(df['p0_52_s_adj_EM']) - (df['p1_52_r_adj_EM'])
     df['p1_s_adj_kls_EM'] = df['tny_stats']+(df['p1_52_s_adj_EM']) - (df['p0_52_r_adj_EM'])
 
-    df['p0_s_commop_kls'] = df['tny_stats']+(df['p0_52_commop_s_pct'] - df['avg_52_s']) - (df['p1_52_commop_r_pct'] - df['avg_52_r'])
-    df['p1_s_commop_kls'] = df['tny_stats']+(df['p1_52_commop_s_pct'] - df['avg_52_s']) - (df['p0_52_commop_r_pct'] - df['avg_52_r'])
+    df['p0_s_commop_kls'] = df['tny_stats']+(df['p0_commop_s_pct'] - df['avg_52_s']) - (df['p1_commop_r_pct'] - df['avg_52_r'])
+    df['p1_s_commop_kls'] = df['tny_stats']+(df['p1_commop_s_pct'] - df['avg_52_s']) - (df['p0_commop_r_pct'] - df['avg_52_r'])
 
     p_hat = np.sum([df['p0_52_swon'],df['p1_52_swon']])/np.sum([df['p0_52_svpt'],df['p1_52_svpt']])
     df['p0_s_baseline'] = p_hat
@@ -269,6 +271,7 @@ def finalize_df(df):
     df['match_prob_adj_kls'] = [matchProb(row['p0_s_adj_kls'],1-row['p1_s_adj_kls']) for i,row in df.iterrows()]
     df['match_prob_adj_kls_EM'] = [matchProb(row['p0_s_adj_kls_EM'],1-row['p1_s_adj_kls_EM']) for i,row in df.iterrows()]
     df['match_prob_commop_kls'] = [matchProb(row['p0_s_commop_kls'],1-row['p1_s_commop_kls']) for i,row in df.iterrows()]
+    df['match_prob_commop'] = [matchProb(row['p0_commop_s_pct'],1-row['p1_commop_s_pct']) for i,row in df.iterrows()]
 
     # generate win probabilities from elo differences
     df['elo_prob'] = (1+10**(df['elo_diff']/-400.))**-1
@@ -289,9 +292,8 @@ returns two dataframes
 1) contains up-to-date player stats through date of most recent match
 2) contains every match with elo/serve/return/etc stats
 '''
-def generate_dfs(date, tour, start_year, ret_strings, abd_strings, counts_538):
-    current_year = int(date.split('_')[-1])
-    match_df = concat_data(1968, current_year, tour)
+def generate_dfs(tour, start_year, end_year, ret_strings, abd_strings, counts_538):
+    match_df = concat_data(start_year, end_year, tour)
     match_df = format_match_df(match_df, tour, ret_strings, abd_strings)
     start_ind = match_df[match_df['match_year']>=start_year-1].index[0]
     current_elo_ratings, match_df = generate_elo(match_df, counts_538)
@@ -304,6 +306,25 @@ def generate_dfs(date, tour, start_year, ret_strings, abd_strings, counts_538):
     current_df = current_elo_ratings.merge(current_52_stats, on='player')
     current_df = generate_EM_stats_current(current_df, cols=['52_s_pct','52_r_pct'])
     return current_df, match_df
+
+
+'''
+returns two dataframes
+1) contains up-to-date player stats through date of most recent match
+2) contains every match with elo/serve/return/etc stats
+'''
+def generate_test_dfs(tour, start_year, end_year, ret_strings, abd_strings, counts_538):
+    match_df = concat_data(start_year, end_year, tour)
+    match_df = format_match_df(match_df, tour, ret_strings, abd_strings)
+    start_ind = match_df[match_df['match_year']>=start_year-1].index[0]
+    current_elo_ratings, match_df = generate_elo(match_df, counts_538)
+
+    match_df = generate_52_stats(match_df, start_ind)
+    match_df = generate_52_adj_stats(match_df, start_ind)
+    match_df = generate_tny_stats(match_df, start_ind)
+    match_df = generate_commop_stats(match_df, start_ind)
+
+    return current_elo_ratings, match_df
 
 '''
 iterate through every historical match, providing
@@ -562,8 +583,8 @@ def has_stats(last_year_stats):
 get opponents who have played a match in the past 12 months (more than 0 points)
 '''
 def get_opponents(player_d, player_name):
-    historical_opponents = player_d[player_name].last_year.keys()
-    return [opp for opp in historical_opponents if has_stats(np.sum(player_d[player_name].last_year[opp], axis=0))]
+    historical_opponents = player_d[player_name].history.keys()
+    return [opp for opp in historical_opponents if has_stats(player_d[player_name].history[opp])]
 
 '''
 compute serve/return parameters, given their common opponent history
@@ -576,8 +597,8 @@ def generate_commop_params(player_d, player1, player2):
 
     match_deltas = np.zeros(len(common_opponents))
     for i, comm_op in enumerate(common_opponents):
-        p1_match_stats = np.sum(player_d[player1].last_year[comm_op], axis=0)
-        p2_match_stats = np.sum(player_d[player2].last_year[comm_op], axis=0)
+        p1_match_stats = player_d[player1].history[comm_op]
+        p2_match_stats = player_d[player2].history[comm_op]
         comm_op_delta = generate_delta(p1_match_stats, p2_match_stats)
         match_deltas[i] = comm_op_delta
         if np.isnan(comm_op_delta):
@@ -589,30 +610,23 @@ def generate_commop_params(player_d, player1, player2):
     return (.6 + overall_delta/2), (.4 + overall_delta/2)
 
 '''
-collect 12-month s/r common-opponent performance by player (TODO: get rid of start_ind as input and filter before
-passing to this function)
+collect historical s/r common-opponent performance by player
 '''
-def generate_52_commop_stats(df, start_ind):
+def generate_commop_stats(df, start_ind):
     player_d = {}
-    start_date = (df['match_year'][start_ind], df['match_month'][start_ind])
-    # array w/ 2x1 arrays for each player's 12-month serve/return performance
     match_52_stats = np.zeros([2,len(df), 2])
 
     w_l = ['w','l']
     for i, row in df.loc[start_ind:].iterrows():
-        date = row['match_year'], row['match_month']
-
         for k, label in enumerate(w_l):
             opponent_name = row[w_l[1-k]+'_name']
             if row[label+'_name'] not in player_d:
-                player_d[row[label+'_name']] = commop_stats_52(date)
+                player_d[row[label+'_name']] = commop_stats()
 
-            # can update player objs before calculating params since players cannot share
-            # each other as common opponents
             if row[label+'_swon']==row[label+'_swon'] and row[label+'_svpt']==row[label+'_svpt']:
                 match_stats = (row[label+'_swon'],row[label+'_svpt'],row[w_l[1-k]+'_svpt']-\
                                 row[w_l[1-k]+'_swon'],row[w_l[1-k]+'_svpt'])
-                player_d[row[label+'_name']].update(date, match_stats, opponent_name)
+                player_d[row[label+'_name']].update(match_stats, opponent_name)
 
         # can compute common-opponent stats after current match stats inputted
         # (since this won't affect common opponents)
@@ -622,10 +636,49 @@ def generate_52_commop_stats(df, start_ind):
         match_52_stats[1][i] = [1 - w_r_pct, 1 - w_s_pct]
 
     for k,label in enumerate(w_l):
-        df[label+'_52_commop_s_pct'] = match_52_stats[k][:,0]
-        df[label+'_52_commop_r_pct'] = match_52_stats[k][:,1]
+        df[label+'_commop_s_pct'] = match_52_stats[k][:,0]
+        df[label+'_commop_r_pct'] = match_52_stats[k][:,1]
 
     return df
+
+# '''
+# collect 12-month s/r common-opponent performance by player (TODO: get rid of start_ind as input and filter before
+# passing to this function)
+# '''
+# def generate_52_commop_stats(df, start_ind):
+#     player_d = {}
+#     start_date = (df['match_year'][start_ind], df['match_month'][start_ind])
+#     # array w/ 2x1 arrays for each player's 12-month serve/return performance
+#     match_52_stats = np.zeros([2,len(df), 2])
+
+#     w_l = ['w','l']
+#     for i, row in df.loc[start_ind:].iterrows():
+#         date = row['match_year'], row['match_month']
+
+#         for k, label in enumerate(w_l):
+#             opponent_name = row[w_l[1-k]+'_name']
+#             if row[label+'_name'] not in player_d:
+#                 player_d[row[label+'_name']] = commop_stats_52(date)
+
+#             # can update player objs before calculating params since players cannot share
+#             # each other as common opponents
+#             if row[label+'_swon']==row[label+'_swon'] and row[label+'_svpt']==row[label+'_svpt']:
+#                 match_stats = (row[label+'_swon'],row[label+'_svpt'],row[w_l[1-k]+'_svpt']-\
+#                                 row[w_l[1-k]+'_swon'],row[w_l[1-k]+'_svpt'])
+#                 player_d[row[label+'_name']].update(date, match_stats, opponent_name)
+
+#         # can compute common-opponent stats after current match stats inputted
+#         # (since this won't affect common opponents)
+#         w_s_pct, w_r_pct = generate_commop_params(player_d, row['w_name'], row['l_name'])
+
+#         match_52_stats[0][i] = [w_s_pct, w_r_pct]
+#         match_52_stats[1][i] = [1 - w_r_pct, 1 - w_s_pct]
+
+#     for k,label in enumerate(w_l):
+#         df[label+'_52_commop_s_pct'] = match_52_stats[k][:,0]
+#         df[label+'_52_commop_r_pct'] = match_52_stats[k][:,1]
+
+#     return df
 
 
 

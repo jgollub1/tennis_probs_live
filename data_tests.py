@@ -1,35 +1,93 @@
 import pandas as pd
 import numpy as np
-from globals import *
+from globals import COUNTS_538, TOUR, RET_STRINGS, ABD_STRINGS
 from data_functions import *
+from tqdm import tqdm
 
-# only run this once
+START_YEAR_TEST = 2012
+END_YEAR_TEST = 2015
+CURRENT_DF_TEST_PATH = 'test_data/test_df_current.csv'
+MATCH_DF_TEST_PATH = 'test_data/test_df_match.csv'
+TEST_COLUMNS_ELO = ['elo', 'hard_elo', 'clay_elo', 'grass_elo']
+TEST_COLUMNS_52 = [
+    u'w_52_swon', u'w_52_svpt', u'w_52_rwon', u'w_52_rpt',
+    u'w_sf_52_swon', u'w_sf_52_svpt', u'w_sf_52_rwon', u'w_sf_52_rpt',
+    u'l_52_swon', u'l_52_svpt', u'l_52_rwon', u'l_52_rpt',
+    u'l_sf_52_swon', u'l_sf_52_svpt', u'l_sf_52_rwon', u'l_sf_52_rpt',
+    u'avg_52_s', u'avg_52_r'
+]
+TEST_COLUMNS_52_ADJ = [
+    u'w_52_s_adj', u'w_52_r_adj', u'l_52_s_adj', u'l_52_r_adj'
+]
+TEST_COLUMNS_COMMOP = [
+    u'w_commop_s_pct', u'w_commop_r_pct', u'l_commop_s_pct', u'l_commop_r_pct'
+]
+
+def compare_cols(col1, col2, col_name):
+    try:
+        assert(np.isclose(df[col], test_df[col]).all())
+    except:
+        print 'failed at col: ', col_name
+
+def test_cols(df, test_df, cols):
+    for col in tqdm(cols):
+        compare_cols(df[col], test_df[col], col)
+
+def test_elo(df, test_df_active):
+    print '### testing elo ###'
+    active_df, elo_df = generate_elo(df, COUNTS_538)
+    test_cols(active_df, test_df_active, TEST_COLUMNS_ELO)
+    print '--- elo passed ---'
+
+def test_52_stats(df, test_df):
+    print '### testing 52 stats ###'
+    df = generate_52_stats(df, 0)
+    test_cols(df, test_df, TEST_COLUMNS_52)
+    print '--- 52 stats passed ---'
+
+def test_52_adj_stats(df, test_df):
+    print '### testing 52 adj stats ###'
+    df = generate_52_adj_stats(df, 0)
+    test_cols(df, test_df, TEST_COLUMNS_52_ADJ)
+    print '--- 52 adj stats passed ---'
+
+def test_commop_stats(df, test_df):
+    print '### testing commop stats ###'
+    df = generate_commop_stats(df, 0)
+    test_cols(df, test_df, TEST_COLUMNS_COMMOP)
+    print '--- commop stats passed ---'
+
+def validate_data_pipeline(df, test_df, test_df_active):
+    test_elo(df, test_df_active)
+
+    test_52_stats(df, test_df)
+
+    test_52_adj_stats(df, test_df)
+
+    test_commop_stats(df, test_df)
+
+def validate_test_df(test_df):
+    return
+
+if __name__=='__main__':
+    df = concat_data(START_YEAR_TEST, END_YEAR_TEST, TOUR)
+    df = format_match_df(df, TOUR, RET_STRINGS, ABD_STRINGS)
+
+    test_df = pd.read_csv(MATCH_DF_TEST_PATH)
+    test_df_active = pd.read_csv(CURRENT_DF_TEST_PATH)
+
+    validate_test_df(test_df)
+    validate_data_pipeline(df, test_df, test_df_active)
+
+
+# # only run this once
 # def build_test_df():
-#     df = concat_data(1968, 2018, TOUR)
-#     df = format_match_df(df, TOUR, RET_STRINGS, ABD_STRINGS)
-#     test_df = df[(df.match_year >= 2012) & (df.match_year <= 2015)].dropna().reset_index()
-#     test_df.to_csv('match_data_constructed/test_df.csv')
+#     current_df, match_df = generate_test_dfs(TOUR, 2012, 2015, RET_STRINGS, ABD_STRINGS, COUNTS_538)
 
-#     active_df, elo_df = generate_elo(df, counts_538)
-#     active_df.to_csv('match_data_constructed/test_df_active_elo.csv')
+#     current_file_path = 'test_data/test_df_current.csv'
+#     current_df.to_csv(current_file_path, index=False)
+#     print '{} constructed '.format(current_file_path)
 
-
-def test_elo(df, counts_538):
-    active_df, elo_df = generate_elo(df, counts_538)
-    active_df_test = pd.read_csv('match_data_constructed/test_df_active_elo.csv')
-
-    assert(np.array_equal([elo_df.w_elo_538[28], 1722.09]))
-    assert(np.array_equal([elo_df.l_elo_538[28], 1724.75]))
-
-    for col in ['elo', 'hard_elo', 'clay_elo', 'grass_elo']:
-        print 'testing: ', col
-        assert(np.array_equal(active_df[col], active_df_test[col]))
-
-def test_52_stats(df):
-    return
-
-def test_52_adj_stats(df):
-    return
-
-def test_52_commop_stats(df):
-    return
+#     match_file_path = 'test_data/test_df_match.csv'
+#     match_df.to_csv(match_file_path, index=False)
+#     print '{} constructed'.format(match_file_path)
