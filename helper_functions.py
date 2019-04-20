@@ -1,98 +1,12 @@
 import math
 import numpy as np
 import pandas as pd
+from globals import PBP_COLS
 from sklearn import linear_model
 from sklearn.model_selection import KFold
 from sklearn.metrics import log_loss,accuracy_score
+from collections import defaultdict
 
-PBP_COLS = ['sets_0','sets_1','games_0','games_1','points_0','points_1','tp_0','tp_1','p0_swp','p0_sp','p1_swp','p1_sp','server']
-
-'''
-tracking object for player's year-long performance over time
-accepts dates in (year,month)
-last_year contains last 12 months stats, most recent to least
-'''
-class stats_52():
-    def __init__(self,date):
-        self.most_recent = date
-        self.last_year = np.zeros([12,4])
-        
-    def time_diff(self,new_date,old_date):
-        return 12*(new_date[0]-old_date[0])+(new_date[1]-old_date[1])
-
-    def set_month(self,match_date):
-        diff = self.time_diff(match_date,self.most_recent)
-        if diff>=12:
-            self.last_year = np.zeros([12,4])
-        elif diff>0:
-            self.last_year[diff:] = self.last_year[:12-diff]; self.last_year[:diff] = 0
-        self.most_recent = match_date
-
-    def update(self,match_date,match_stats):
-        self.set_month(match_date)
-        self.last_year[0] = self.last_year[0]+match_stats
-
-'''
-tracking object for opponent-adjusted ratings
-stores opponent ability at time of match to compare performance against
-'''
-class adj_stats_52():
-    def __init__(self,date):
-        self.most_recent = date
-        self.last_year = np.zeros([12,6])
-        self.adj_sr = [0,0]
-        
-    def time_diff(self,new_date,old_date):
-        return 12*(new_date[0]-old_date[0])+(new_date[1]-old_date[1])
-
-    def set_month(self,match_date):
-        diff = self.time_diff(match_date,self.most_recent)
-        if diff>=12:
-            self.last_year = np.zeros([12,6])
-        elif diff>0:
-            self.last_year[diff:] = self.last_year[:12-diff]; self.last_year[:diff] = 0
-        self.most_recent = match_date
-        self.update_adj_sr()
-
-    def update(self,match_date,match_stats):
-        self.set_month(match_date)
-        self.last_year[0] = self.last_year[0]+match_stats
-        self.update_adj_sr()
-    
-    # update the player's adjust serve/return ability, based on last twelve months
-    def update_adj_sr(self):
-        s_pt, r_pt = np.sum(self.last_year[:,1]), np.sum(self.last_year[:,3])
-        if s_pt==0 or r_pt==0:
-            self.adj_sr = [0,0]
-            return
-        with np.errstate(divide='ignore', invalid='ignore'):
-            f_i = np.sum(self.last_year[:,0])/s_pt
-            f_adj = 1 - np.sum(self.last_year[:,4])/s_pt
-            g_i = np.sum(self.last_year[:,2])/r_pt
-            g_adj = 1 - np.sum(self.last_year[:,5])/r_pt
-        self.adj_sr[0] = f_i - f_adj
-        self.adj_sr[1] = g_i - g_adj
-
-
-'''
-tracking object for yearly tournament averages
-'''
-class tny_52():
-    def __init__(self,date):
-        self.most_recent = date
-        self.tny_stats = np.zeros([2,2])
-        self.historical_avgs = {}
-    
-    def update(self,match_year,match_stats):
-        diff = match_year-self.most_recent
-        if diff>=2:
-            self.tny_stats = np.zeros([2,2])
-        elif diff==1:
-            self.tny_stats[1] = self.tny_stats[0]; self.tny_stats[0]=0
-        self.tny_stats[0] = self.tny_stats[0]+match_stats
-        self.most_recent = match_year
-        self.historical_avgs[match_year] = (self.tny_stats[0][0],self.tny_stats[0][1])
-        return 0 if self.tny_stats[1][1]==0 else self.tny_stats[1][0]/float(self.tny_stats[1][1])
 
 
 '''
@@ -113,7 +27,7 @@ def enumerate_pbp_V3(s,columns,final_set_extend=0):
     games,p0_g, p1_g = [0,0],[0],[0]
     sets,p0_s, p1_s = [0,0],[0],[0]
     server = 0; servers=[]
-    
+
     # divides into s_new, array of games
     s = s.split(';'); s_new = []
     for i in range(len(s)):
@@ -137,7 +51,7 @@ def enumerate_pbp_V3(s,columns,final_set_extend=0):
             for j in range(len(mini_games)):
                 for l in range(len(mini_games[j])):
                     if mini_games[j][l]!='.':
-                        winner = int(mini_games[j][l] in ('S','A') and t_server==1 or mini_games[j][l] in ('R','D') and t_server==0) 
+                        winner = int(mini_games[j][l] in ('S','A') and t_server==1 or mini_games[j][l] in ('R','D') and t_server==0)
                         points[winner]+=1
                         t_points[winner]+=1
                         if winner==server: sw_points[winner]+=1
@@ -160,15 +74,15 @@ def enumerate_pbp_V3(s,columns,final_set_extend=0):
                         sub_matches[-1] += '.'
                 t_server = 1 - t_server
 
-        # otherwise 
+        # otherwise
         else:
             for k in range(len(s_new[i])):
                 if s_new[i][k]=='/':
                     print 'ERROR; this should be TIEBREAK'
                     return 0
 
-                if s_new[i][k]!='.':    
-                    winner = int(s_new[i][k] in ('S','A') and server==1 or s_new[i][k] in ('R','D') and server==0) 
+                if s_new[i][k]!='.':
+                    winner = int(s_new[i][k] in ('S','A') and server==1 or s_new[i][k] in ('R','D') and server==0)
                     points[winner]+=1
                     t_points[winner]+=1
                     if winner==server: sw_points[winner]+=1
@@ -196,9 +110,9 @@ def enumerate_pbp_V3(s,columns,final_set_extend=0):
                     p0_g[-1],p1_g[-1]=games[0],games[1]
                     p0_p[-1],p1_p[-1]=points[0],points[1]
                     sub_matches[-1] += '.'
-        
+
         points = [0,0]
-    
+
     columns = np.repeat([columns],[len(servers)],axis=0)
     generated_cols = np.array([p0_s[:-1],p1_s[:-1],p0_g[:-1],p1_g[:-1],p0_p[:-1],p1_p[:-1],p0_tp[:-1],p1_tp[:-1],p0_swp[:-1],p0_sp[:-1],p1_swp[:-1],p1_sp[:-1],servers]).T
     return sub_matches[:-1], np.concatenate([columns,generated_cols],axis=1)
@@ -218,7 +132,7 @@ def generate_df_V2(df_pbp,columns,final_set_extend):
     print 'df shape: ', df.shape
     df[df.columns[2:]] = df[df.columns[2:]].astype(float)
     df['score'] = np.concatenate(pbps)
-    df['in_lead'] = in_lead(df) 
+    df['in_lead'] = in_lead(df)
     return df
 
 
@@ -240,9 +154,10 @@ def simplify(s):
     s=s.replace('A','S');s=s.replace('D','R')
     sets = s.split('.')
     literal_s=''
+    next_server = 0
     for k in range(len(sets)):
         # set server to 0 or 1 at beginning of set, keeping track of all transitions
-        server = 0 if k==0 else next_server    
+        server = 0 if k==0 else next_server
         games = sets[k].split(';');length = len(games)
         # update length of games (service switches) if there is tiebreak
         if length > 12:
@@ -264,14 +179,14 @@ def service_breaks(s):
     all_sets = s.split('.'); p1_games, p2_games = 0,0
     for k in range(len(all_sets)):
         # set server to 0 or 1 at beginning of set, keeping track of all transitions
-        server = 0 if k==0 else next_server 
+        server = 0 if k==0 else next_server
         games = all_sets[k].split(';');length = len(games)
-        next_server = (server+1)%2 if length>12 else (server + len(games))%2   
+        next_server = (server+1)%2 if length>12 else (server + len(games))%2
         if k==len(all_sets)-1:
             completed_games = all_sets[k].split(';')[:-1]
             for i in range(len(completed_games)):
-                if i!=0: 
-                    server = (server+1)%2 
+                if i!=0:
+                    server = (server+1)%2
                 game = completed_games[i]
                 if server==0 and game[-1]=='S' or server==1 and game[-1]=='R':
                     p1_games += 1
@@ -293,7 +208,7 @@ def get_set_order(s):
     sets = ''
     for k in range(len(completed_sets)):
         # set server to 0 or 1 at beginning of set, keeping track of all transitions
-        server = 0 if k==0 else next_server              
+        server = 0 if k==0 else next_server
         games = completed_sets[k].split(';');length = len(games)
         # update length of games (service switches) if there is tiebreak
         if length > 12:
@@ -313,12 +228,12 @@ def get_set_order(s):
 
 # gets game order of entire match, with sets separated by periods
 def get_game_order(s):
-    s=s.replace('A','S');s=s.replace('D','R')  
+    s=s.replace('A','S');s=s.replace('D','R')
     # last entry in this will be '' if we split at the end of a set
     all_sets = s.split('.')[:-1]
     game_s = ''
     for k in range(len(all_sets)):
-        server = 0 if k==0 else next_server   
+        server = 0 if k==0 else next_server
         #games = all_sets[k].split(';');length = len(games)
         game_s += get_game_order_sub(all_sets[k] + ';',server) + '.'
         next_server = (server+1)%2 if len(all_sets[k].split(';')) > 12 else (server + len(all_sets[k].split(';')))%2
@@ -373,35 +288,15 @@ def do_classify(clf, parameters, indf, featurenames, targetname, target1val, mas
     print "Log Loss on test data:     %0.2f" % (test_loss)
     return clf, Xtrain, ytrain, Xtest, ytest
 
-def normalize_name(s,tour='atp'):
-    if tour=='atp':
-        s = s.replace('-',' ')
-        s = s.replace('Stanislas','Stan').replace('Stan','Stanislas')
-        s = s.replace('Alexandre','Alexander')
-        s = s.replace('Federico Delbonis','Federico Del').replace('Federico Del','Federico Delbonis')
-        s = s.replace('Mello','Melo')
-        s = s.replace('Cedric','Cedrik')
-        s = s.replace('Bernakis','Berankis')
-        s = s.replace('Hansescu','Hanescu')
-        s = s.replace('Teimuraz','Teymuraz')
-        s = s.replace('Vikor','Viktor')
-        s = s.rstrip()
-        s = s.replace('Alex Jr.','Alex Bogomolov')
-        s = s.title()
-        sep = s.split(' ')
-        return ' '.join(sep[:2]) if len(sep)>2 else s
-    else:
-        return s
-
 def break_point(s):
     s=s.replace('A','S');s=s.replace('D','R')
     all_sets = s.split('.')
     for k in range(len(all_sets)):
         # set server to 0 or 1 at beginning of set, keeping track of all transitions
-        server = 0 if k==0 else next_server 
+        server = 0 if k==0 else next_server
         games = all_sets[k].split(';')
         length = len(games)
-        next_server = (server+1)%2 if length>12 else (server + length)%2   
+        next_server = (server+1)%2 if length>12 else (server + length)%2
         if k==len(all_sets)-1:
             last_game = games[-1]
             final_server = (server+len(games[:-1]))%2
@@ -416,7 +311,7 @@ def break_point(s):
             else:
                 return (0,0)
 
-# cols is a list of column sets for logistic regression; 
+# cols is a list of column sets for logistic regression;
 # probs are model-specific probabilities
 def validate_results(df,probs,lm_columns,n_splits=5):
     kfold = KFold(n_splits=n_splits,shuffle=True)
@@ -424,12 +319,12 @@ def validate_results(df,probs,lm_columns,n_splits=5):
     for train_ind,test_ind in kfold.split(df):
         lm = linear_model.LogisticRegression(fit_intercept = True)
         train_df,test_df = df.loc[train_ind],df.loc[test_ind]
-        
+
         for j,prob_col in enumerate(probs):
             y_preds = test_df[prob_col]>.5
             scores[j][0][i]=accuracy_score(test_df['winner'],y_preds)
             scores[j][1][i]=log_loss(test_df['winner'],test_df[prob_col],labels=[0,1])
-        
+
         for k,cols in enumerate(lm_columns):
             lm.fit(train_df[cols].values.reshape([len(train_df),len(cols)]),train_df['winner'])
             y_preds = lm.predict(test_df[cols].values.reshape([len(test_df),len(cols)]))
@@ -442,7 +337,7 @@ def validate_results(df,probs,lm_columns,n_splits=5):
         print prob_col
         print 'accuracy: ', np.mean(scores[j][0])
         print 'loss: ', np.mean(scores[j][1])
-    
+
     for i,cols in enumerate(lm_columns):
         print 'lm columns: ',cols
         print 'accuracy: ', np.mean(scores[len(probs)+i][0])
@@ -452,13 +347,13 @@ def validate_results(df,probs,lm_columns,n_splits=5):
 def test_results(df_train,df_test,probs,lm_columns):
     scores = np.zeros([len(lm_columns)+len(probs),2]);i=0
     lm = linear_model.LogisticRegression(fit_intercept = True)
-    
+
     for j,prob_col in enumerate(probs):
         y_preds = df_test[prob_col]>.5
         print prob_col
         print 'accuracy: ', accuracy_score(df_test['winner'],y_preds)
         print 'loss: ', log_loss(df_test['winner'],df_test[prob_col],labels=[0,1])
-    
+
     for k,cols in enumerate(lm_columns):
         lm.fit(df_train[cols].values.reshape([df_train.shape[0],len(cols)]),df_train['winner'])
         y_preds = lm.predict(df_test[cols].values.reshape([df_test.shape[0],len(cols)]))
@@ -469,7 +364,7 @@ def test_results(df_train,df_test,probs,lm_columns):
         print 'loss: ', log_loss(df_test['winner'],y_probs,labels=[0,1])
 
         if cols == ['elo_diff_538','sf_elo_diff_538']:
-            y_logit_probs = y_probs[:,1]        
+            y_logit_probs = y_probs[:,1]
 
     return y_logit_probs
 
@@ -485,14 +380,14 @@ def cross_validate(val_df,clf,cols,target,hyper_parameters,n_splits):
     kfold = KFold(n_splits=n_splits,shuffle=True)
     key = hyper_parameters.keys()[0]
     scores = [[] for k in range(len(hyper_parameters[key]))]
-    
+
     for train_index,____ in kfold.split(ids):
         train_dict = dict(zip(train_index,[1]*len(train_index)))
         train_ind = vfunc(np.array(val_df['match_id']),train_dict)
         test_ind = (1 - train_ind)==1
         Xtrain, ytrain = val_df[cols][train_ind], np.array(val_df[target][train_ind]).reshape([(sum(train_ind),)])
         Xtest, ytest = val_df[cols][test_ind], np.array(val_df[target][test_ind]).reshape([(sum(test_ind),)])
-        
+
         # retrieve classification score for every hyper_parameter fed into this function
         # LOOP THROUGH ALL KEYS here if you want to test multiple hyper_params
         for j in xrange(len(hyper_parameters[key])):
@@ -513,4 +408,4 @@ if __name__=='__main__':
     S2 = 'SSSS;SSSS;SSSS;SSSS;SSSS;SSSS;SSSS;SSSS;SSRRSRSRSS;SSSRS;RRSSRSSS;SSSRS;S/SS/SR/SS/SS/RS/SS/SS/SS/R.RRRSSR;RSRRR;SSSS;'
     S3 = 'SSSS;SSSS;SSSS;SSSS;SSSS;SSSS;SSSS;SSSS;SSRRSRSRSS;SSSRS;RRSSRSSS;SSSRS;S/SS/SR/SS/SS/RS/SS/SS/SS/R.RRRSSR;RSRRR;S'
     S4 = 'SS/R.RRRSSR;RSRRR;SSSS;RSSSS;SSRSS;SRSRSRRSSS;SRSSRS;RRRR;RRSRSS'
-    a,b = enumerate_pbp(S,'point')
+    a,b = enumerate_pbp_V3(S,'point')

@@ -10,21 +10,50 @@ import tennisMatchProbability
 import tennisSetProbability
 import tennisTiebreakProbability
 from tennisMatchProbability import matchProb
-from helper_functions import adj_stats_52, stats_52, tny_52, normalize_name
+from data_classes import stats_52, adj_stats_52, commop_stats, tny_52
 from sklearn import linear_model
+from globals import COMMOP_START_YEAR
+
+pd.options.mode.chained_assignment = None
 
 # TO DO: add switches or global indicators for surface stats
 
 '''
-concatenate original match dataframes from years 
+concatenate original match dataframes from years
 (start_y, end_y)
 '''
 def concat_data(start_y, end_y, tour):
     atp_year_list = []
     for i in xrange(start_y, end_y+1):
         f_name = "match_data/"+tour+"_matches_{0}.csv".format(i)
-        atp_year_list.append(pd.read_csv(f_name))
+        try:
+            atp_year_list.append(pd.read_csv(f_name))
+        except:
+            print 'could not find file for year: ', i
     return pd.concat(atp_year_list, ignore_index = True)
+
+'''
+clean up mispellings in datasets. specific to atp/wta tours
+'''
+def normalize_name(s, tour='atp'):
+    if tour=='atp':
+        s = s.replace('-',' ')
+        s = s.replace('Stanislas','Stan').replace('Stan','Stanislas')
+        s = s.replace('Alexandre','Alexander')
+        s = s.replace('Federico Delbonis','Federico Del').replace('Federico Del','Federico Delbonis')
+        s = s.replace('Mello','Melo')
+        s = s.replace('Cedric','Cedrik')
+        s = s.replace('Bernakis','Berankis')
+        s = s.replace('Hansescu','Hanescu')
+        s = s.replace('Teimuraz','Teymuraz')
+        s = s.replace('Vikor','Viktor')
+        s = s.rstrip()
+        s = s.replace('Alex Jr.','Alex Bogomolov')
+        s = s.title()
+        sep = s.split(' ')
+        return ' '.join(sep[:2]) if len(sep)>2 else s
+    else:
+        return s
 
 '''
 data cleaning and formatting
@@ -72,6 +101,7 @@ def format_match_df(df,tour,ret_strings=[],abd_strings=[]):
 original dataset labels columns by 'w_'/'l_'
 randomly assigning 'w'/'l' to 'p0','p1'
 '''
+# TODO: refactor this into two functions
 def change_labels(df, cols):
     # change w,l TO p0,p1
     for col in cols:
@@ -83,13 +113,29 @@ def change_labels(df, cols):
     for label in ['p0','p1']:
         df[label+'_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_swon']/df[label+'_52_svpt'])]
         df[label+'_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_rwon']/df[label+'_52_rpt'])]
-        # df[label+'_sf_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_swon']/df[label+'_sf_52_svpt'])]
-        # df[label+'_sf_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_rwon']/df[label+'_sf_52_rpt'])]
+        df[label+'_sf_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_swon']/df[label+'_sf_52_svpt'])]
+        df[label+'_sf_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_rwon']/df[label+'_sf_52_rpt'])]
 
     for label in ['w', 'l']:
         df.drop([label + col for col in cols], axis=1, inplace=True)
 
     df['tny_name'] = [s if s==s else 'Davis Cup' for s in df['tny_name']]
+    return df
+
+'''
+original dataset labels columns by 'w_'/'l_'
+randomly assigning 'w'/'l' to 'p0','p1'
+(without extra formatting)
+'''
+def change_labels_v2(df, cols):
+    # change w,l TO p0,p1
+    for col in cols:
+        df['p0'+col] = [df['l'+col][i] if df['winner'][i] else df['w'+col][i] for i in xrange(len(df))]
+        df['p1'+col] = [df['w'+col][i] if df['winner'][i] else df['l'+col][i] for i in xrange(len(df))]
+
+    for label in ['w', 'l']:
+        df.drop([label + col for col in cols], axis=1, inplace=True)
+
     return df
 
 '''
@@ -112,7 +158,7 @@ def get_current_52_stats(df, start_ind):
                 players_stats[row[label+'_name']] = stats_52(date)
             # store serving stats prior to match, update current month
             players_stats[row[label+'_name']].set_month(date)
-            if row[label+'_swon']==row[label+'_swon'] and row[label+'_svpt']==row[label+'_svpt']:    
+            if row[label+'_swon']==row[label+'_swon'] and row[label+'_svpt']==row[label+'_svpt']:
                 match_stats = (row[label+'_swon'],row[label+'_svpt'],row[w_l[1-k]+'_svpt']-\
                                 row[w_l[1-k]+'_swon'],row[w_l[1-k]+'_svpt'])
                 players_stats[row[label+'_name']].update(date,match_stats)
@@ -130,37 +176,43 @@ def get_current_52_stats(df, start_ind):
     # avg_52_stats = np.sum(avg_stats.last_year,axis=0)
     cols = ['player','52_swon','52_svpt','52_rwon','52_rpt']
     current_stats_df = pd.DataFrame(current_52_stats, columns=cols)
-    current_stats_df['52_s_pct'] = current_stats_df['52_swon']/current_stats_df['52_svpt'] 
+    current_stats_df['52_s_pct'] = current_stats_df['52_swon']/current_stats_df['52_svpt']
     current_stats_df['52_r_pct'] = current_stats_df['52_rwon']/current_stats_df['52_rpt']
     return current_stats_df[current_stats_df['52_svpt']>0] # return players active in past 12 months
 
 '''
-generate 12-month stats for Barnett-Clarke model 
+generate 12-month stats for Barnett-Clarke model
 as well as variations (adjusted, EM-normalized)
 '''
 def generate_stats(df, start_ind):
     df = generate_52_stats(df,start_ind)
+    print 'generated 52 stats...'
     df = generate_52_adj_stats(df,start_ind)
+    print 'generated 52 adj stats...'
     df = generate_tny_stats(df,start_ind)
+    print 'generated tny stats...'
+    df = generate_commop_stats(df, start_ind)
+    print 'generated commop stats...'
 
-    cols = ['_name','_elo_538','_sf_elo_538',\
-            # ,'_elo','_sf_elo'
-            # '_sf_52_swon','_sf_52_svpt','_sf_52_rwon','_sf_52_rpt'
-            '_swon', '_svpt', '_rwon', '_rpt',\
-            '_52_swon', '_52_svpt','_52_rwon','_52_rpt','_52_s_adj','_52_r_adj']
-    
+    cols = ['_name','_elo_538','_sf_elo_538', #'_elo','_sf_elo'
+        '_swon', '_svpt', '_rwon', '_rpt',
+        '_52_swon', '_52_svpt','_52_rwon','_52_rpt',
+        '_sf_52_swon','_sf_52_svpt','_sf_52_rwon','_sf_52_rpt',
+        '_52_s_adj','_52_r_adj']
+
     df['winner'] = np.random.choice([0,1], df.shape[0])
     df = change_labels(df, cols)
-    
-    df['elo_diff'] = df['p0_elo_538'] - df['p1_elo_538'] 
+    df = change_labels_v2(df, ['_commop_s_pct', '_commop_r_pct'])
+
+    df['elo_diff'] = df['p0_elo_538'] - df['p1_elo_538']
     df['sf_elo_diff'] = df['p0_sf_elo_538'] - df['p1_sf_elo_538']
-    
+
     # # dataframe with only official matches
     # df = df[df['winner']!='None']
     # df = df.reset_index(drop=True)
     # cols = ['52_s_adj','52_r_adj']
-    
-    em_cols = ['s_pct', 'r_pct', '52_s_adj', '52_r_adj']
+
+    em_cols = ['s_pct', 'r_pct', 'sf_s_pct', 'sf_r_pct', '52_s_adj', '52_r_adj']
     df = generate_sr_pct(df)
 
     # FIX for correct em stat sample sizes
@@ -175,49 +227,63 @@ def generate_sr_pct(df):
     p_hat = np.sum([df['p0_52_swon'],df['p1_52_swon']])
     p_hat = p_hat/np.sum([df['p0_52_svpt'],df['p1_52_svpt']])
     for label in ['p0','p1']:
-        # df[label+'_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_swon']/df[label+'_52_svpt'])]
-        # df[label+'_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_52_rwon']/df[label+'_52_rpt'])]
+        # divide with np.nan_to_num and use p_hat as a placeholder when n=0
         df[label+'_s_pct'] = np.nan_to_num(df[label+'_52_swon']/df[label+'_52_svpt'])
-        df[label+'_r_pct'] = np.nan_to_num(df[label+'_52_rwon']/df[label+'_52_rpt'])
         df[label+'_s_pct'] = df[label+'_s_pct'] + (p_hat) * (df[label+'_s_pct'] == 0)
+        df[label+'_r_pct'] = np.nan_to_num(df[label+'_52_rwon']/df[label+'_52_rpt'])
         df[label+'_r_pct'] = df[label+'_r_pct'] + (1-p_hat)*(df[label+'_r_pct'] == 0)
-        # df[label+'_sf_s_pct'] = [p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_swon']/df[label+'_sf_52_svpt'])]
-        # df[label+'_sf_r_pct'] = [1-p_hat if x==0 else x for x in np.nan_to_num(df[label+'_sf_52_rwon']/df[label+'_sf_52_rpt'])]
-        
+
+        df[label+'_sf_s_pct'] = np.nan_to_num(df[label+'_sf_52_swon']/df[label+'_sf_52_svpt'])
+        df[label+'_sf_s_pct'] = df[label+'_sf_s_pct'] + (p_hat) * (df[label+'_sf_s_pct'] == 0)
+        df[label+'_sf_r_pct'] = np.nan_to_num(df[label+'_sf_52_rwon']/df[label+'_sf_52_rpt'])
+        df[label+'_sf_r_pct'] = df[label+'_sf_r_pct'] + (1-p_hat)*(df[label+'_sf_r_pct'] == 0)
+
         # finally, generate the observed service percentages in each match
         df[label+'_s_pct_obsv'] = np.nan_to_num(df[label+'_swon']/df[label+'_svpt'])
     return df
 
 def finalize_df(df):
-    # generate serving probabilities for Klaassen-Magnus model
+    # generate serving probabilities for Barnett-Clarke model
     df['match_id'] = range(len(df))
     df['tny_stats'] = [df['avg_52_s'][i] if df['tny_stats'][i]==0 else df['tny_stats'][i] for i in xrange(len(df))]
     df['p0_s_kls'] = df['tny_stats']+(df['p0_s_pct']-df['avg_52_s']) - (df['p1_r_pct']-df['avg_52_r'])
     df['p1_s_kls'] = df['tny_stats']+(df['p1_s_pct']-df['avg_52_s']) - (df['p0_r_pct']-df['avg_52_r'])
     df['p0_s_kls_EM'] = df['tny_stats']+(df['p0_s_pct_EM']-df['avg_52_s']) - (df['p1_r_pct_EM']-df['avg_52_r'])
     df['p1_s_kls_EM'] = df['tny_stats']+(df['p1_s_pct_EM']-df['avg_52_s']) - (df['p0_r_pct_EM']-df['avg_52_r'])
-    
-    # df['p0_s_sf_kls'] = df['tny_stats']+(df['p0_sf_s_pct']-df['sf_avg_52_s']) - (df['p1_sf_r_pct']-df['sf_avg_52_r'])
-    # df['p1_s_sf_kls'] = df['tny_stats']+(df['p1_sf_s_pct']-df['sf_avg_52_s']) - (df['p0_sf_r_pct']-df['sf_avg_52_r'])
-    # df['p0_s_sf_kls_EM'] = df['tny_stats']+(df['p0_sf_s_pct_EM']-df['sf_avg_52_s']) - (df['p1_sf_r_pct_EM']-df['sf_avg_52_r'])
-    # df['p1_s_sf_kls_EM'] = df['tny_stats']+(df['p1_sf_s_pct_EM']-df['sf_avg_52_s']) - (df['p0_sf_r_pct_EM']-df['sf_avg_52_r'])
+
+    df['p0_s_sf_kls'] = df['tny_stats']+(df['p0_sf_s_pct']-df['sf_avg_52_s']) - (df['p1_sf_r_pct']-df['sf_avg_52_r'])
+    df['p1_s_sf_kls'] = df['tny_stats']+(df['p1_sf_s_pct']-df['sf_avg_52_s']) - (df['p0_sf_r_pct']-df['sf_avg_52_r'])
+    df['p0_s_sf_kls_EM'] = df['tny_stats']+(df['p0_sf_s_pct_EM']-df['sf_avg_52_s']) - (df['p1_sf_r_pct_EM']-df['sf_avg_52_r'])
+    df['p1_s_sf_kls_EM'] = df['tny_stats']+(df['p1_sf_s_pct_EM']-df['sf_avg_52_s']) - (df['p0_sf_r_pct_EM']-df['sf_avg_52_r'])
+
     df['p0_s_adj_kls'] = df['tny_stats']+(df['p0_52_s_adj']) - (df['p1_52_r_adj'])
     df['p1_s_adj_kls'] = df['tny_stats']+(df['p1_52_s_adj']) - (df['p0_52_r_adj'])
     df['p0_s_adj_kls_EM'] = df['tny_stats']+(df['p0_52_s_adj_EM']) - (df['p1_52_r_adj_EM'])
     df['p1_s_adj_kls_EM'] = df['tny_stats']+(df['p1_52_s_adj_EM']) - (df['p0_52_r_adj_EM'])
 
-    # generate match probabilities and z-scores for Klaassen method, with and w/o JS estimators
+    df['p0_s_commop_kls'] = df['tny_stats']+(df['p0_commop_s_pct'] - df['avg_52_s']) - (df['p1_commop_r_pct'] - df['avg_52_r'])
+    df['p1_s_commop_kls'] = df['tny_stats']+(df['p1_commop_s_pct'] - df['avg_52_s']) - (df['p0_commop_r_pct'] - df['avg_52_r'])
+
+    p_hat = np.sum([df['p0_52_swon'],df['p1_52_swon']])/np.sum([df['p0_52_svpt'],df['p1_52_svpt']])
+    df['p0_s_baseline'] = p_hat
+    df['p1_s_baseline'] = p_hat
+
+    # generate match probabilities for Barnett-Clarke method, with or w/o EM estimators
     df['match_prob_kls'] = [matchProb(row['p0_s_kls'],1-row['p1_s_kls']) for i,row in df.iterrows()]
     df['match_prob_kls_EM'] = [matchProb(row['p0_s_kls_EM'],1-row['p1_s_kls_EM']) for i,row in df.iterrows()]
-    # df['match_prob_sf_kls'] = [matchProb(row['p0_s_sf_kls'],1-row['p1_s_sf_kls']) for i,row in df.iterrows()]
-    # df['match_prob_sf_kls_EM'] = [matchProb(row['p0_s_sf_kls_EM'],1-row['p1_s_sf_kls_EM']) for i,row in df.iterrows()]
+    df['match_prob_sf_kls'] = [matchProb(row['p0_s_sf_kls'],1-row['p1_s_sf_kls']) for i,row in df.iterrows()]
+    df['match_prob_sf_kls_EM'] = [matchProb(row['p0_s_sf_kls_EM'],1-row['p1_s_sf_kls_EM']) for i,row in df.iterrows()]
     df['match_prob_adj_kls'] = [matchProb(row['p0_s_adj_kls'],1-row['p1_s_adj_kls']) for i,row in df.iterrows()]
     df['match_prob_adj_kls_EM'] = [matchProb(row['p0_s_adj_kls_EM'],1-row['p1_s_adj_kls_EM']) for i,row in df.iterrows()]
+    df['match_prob_commop_kls'] = [matchProb(row['p0_s_commop_kls'],1-row['p1_s_commop_kls']) for i,row in df.iterrows()]
+    # df['match_prob_commop'] = [matchProb(row['p0_commop_s_pct'],1-row['p1_commop_s_pct']) for i,row in df.iterrows()]
+    # TODO: use w_commop_match_prob
+    df['match_prob_commop'] = [1 - df['w_commop_match_prob'][i] if df['winner'][i] else df['w_commop_match_prob'][i] for i in xrange(len(df))]
 
     # generate win probabilities from elo differences
     df['elo_prob'] = (1+10**(df['elo_diff']/-400.))**-1
     # df['elo_prob_538'] = (1+10**(df['elo_diff_538']/-400.))**-1
-    # df['sf_elo_prob'] = [(1+10**(diff/-400.))**-1 for diff in df['sf_elo_diff']]
+    df['sf_elo_prob'] = [(1+10**(diff/-400.))**-1 for diff in df['sf_elo_diff']]
     # df['sf_elo_prob_538'] = [(1+10**(diff/-400.))**-1 for diff in df['sf_elo_diff_538']]
 
     # elo-induced serve percentages
@@ -225,27 +291,60 @@ def finalize_df(df):
     # df = generate_elo_induced_s(df, 'logit_elo_538',start_ind=0)
     return df
 
+def get_start_ind(match_df, start_year):
+    return match_df[match_df['match_year']>=start_year-1].index[0]
+
 '''
 returns two dataframes
 1) contains up-to-date player stats through date of most recent match
 2) contains every match with elo/serve/return/etc stats
 '''
-def generate_dfs(df, counts_i, start_ind):
-    active_df, df = generate_elo(df, counts_i)
-    df = generate_stats(df, start_ind) # 52, adj, tny, etc.
-    df = finalize_df(df)
-    return active_df, df
+def generate_dfs(tour, start_year, end_year, ret_strings, abd_strings, counts_538):
+    match_df = concat_data(start_year, end_year, tour)
+    match_df = format_match_df(match_df, tour, ret_strings, abd_strings)
+    start_ind = match_df[match_df['match_year']>=start_year-1].index[0]
+    current_elo_ratings, match_df = generate_elo(match_df, counts_538)
+    print 'generated elo on match dataset...'
+
+    match_df = generate_stats(match_df, start_ind) # 52, adj, tny, etc.
+    match_df = finalize_df(match_df)
+    match_df = match_df.reset_index(drop=True)
+    print 'finalized df...'
+
+    current_52_stats = get_current_52_stats(match_df, start_ind=0)
+    current_df = current_elo_ratings.merge(current_52_stats, on='player')
+    current_df = generate_EM_stats_current(current_df, cols=['52_s_pct','52_r_pct'])
+    return current_df, match_df
+
+
+'''
+returns two dataframes
+1) contains up-to-date player stats through date of most recent match
+2) contains every match with elo/serve/return/etc stats
+'''
+def generate_test_dfs(tour, start_year, end_year, ret_strings, abd_strings, counts_538):
+    match_df = concat_data(start_year, end_year, tour)
+    match_df = format_match_df(match_df, tour, ret_strings, abd_strings)
+    start_ind = match_df[match_df['match_year']>=start_year-1].index[0]
+    current_elo_ratings, match_df = generate_elo(match_df, counts_538)
+
+    match_df = generate_52_stats(match_df, start_ind)
+    match_df = generate_52_adj_stats(match_df, start_ind)
+    match_df = generate_tny_stats(match_df, start_ind)
+    match_df = generate_commop_stats(match_df, start_ind)
+
+    return current_elo_ratings, match_df
 
 '''
 iterate through every historical match, providing
 up-to-date elo ratings for each player prior to match
 generates two dataframes
 1) match dataframe with each player's pre-match elo ratings
-2) player dataframe with each player's current elo ratings 
+2) player dataframe with each player's current elo ratings
    (through input df's most recent match)
 ** considers surface ratings as well
 '''
-def generate_elo(df, counts_i):
+def generate_elo(df, counts_538):
     players_list = np.union1d(df.w_name, df.l_name)
     player_count = len(players_list)
     initial_elos = [elo.Rating() for __ in range(player_count)]
@@ -253,7 +352,7 @@ def generate_elo(df, counts_i):
     sf_elo = {}
     for sf in ('Hard','Clay','Grass'):
         initial_elos = [elo.Rating() for __ in range(player_count)]
-        sf_elo[sf] = dict(zip(players_list, initial_elos)) 
+        sf_elo[sf] = dict(zip(players_list, initial_elos))
 
     elo_1s, elo_2s = [],[]
     sf_elo_1s, sf_elo_2s = [],[]
@@ -275,22 +374,22 @@ def generate_elo(df, counts_i):
         active_players[current_month].add(l_name)
         elo_1s.append(w_elo.value)
         elo_2s.append(l_elo.value)
-        elo_obj.rate_1vs1(w_elo,l_elo,is_gs,counts_i)
-        
+        elo_obj.rate_1vs1(w_elo,l_elo,is_gs,counts_538)
+
         if sf in ('Hard','Clay','Grass'):
             w_sf_elo,l_sf_elo = sf_elo[sf][w_name],sf_elo[sf][l_name]
             sf_elo_1s.append(w_sf_elo.value)
-            sf_elo_2s.append(l_sf_elo.value)  
-            elo_obj.rate_1vs1(w_sf_elo,l_sf_elo,is_gs,counts_i)
+            sf_elo_2s.append(l_sf_elo.value)
+            elo_obj.rate_1vs1(w_sf_elo,l_sf_elo,is_gs,counts_538)
         else:
             sf_elo_1s.append(w_elo.value)
-            sf_elo_2s.append(l_elo.value)            
+            sf_elo_2s.append(l_elo.value)
 
     players = active_players.values()
     players = list(set.union(*players))
     active_players_elo = [[players_elo[player].value] for player in players]
     active_players_elo = dict(zip(players, active_players_elo))
-    
+
     for sf in ('Hard','Clay','Grass'):
         for player in players:
             active_players_elo[player] += [sf_elo[sf][player].value]
@@ -298,7 +397,7 @@ def generate_elo(df, counts_i):
     active_df.columns = ['player', 'elo', 'hard_elo', 'clay_elo', 'grass_elo']
     active_df = active_df.sort_values(by=['elo'], ascending=False)
 
-    tag = '_538' if counts_i else ''
+    tag = '_538' if counts_538 else ''
     df['w_elo'+tag], df['l_elo'+tag] = elo_1s, elo_2s
     df['w_sf_elo'+tag], df['l_sf_elo'+tag] = sf_elo_1s, sf_elo_2s
     return active_df, df
@@ -315,14 +414,23 @@ def generate_52_stats(df,start_ind):
     # array w/ 2x1 arrays for each player's 12-month serve/return performance
     match_52_stats = np.zeros([2,len(df),4])
     avg_52_stats = np.zeros([len(df),4]) # avg tour-wide stats for serve, return
-    
+
+    s_players_stats = {}
+    s_avg_stats = {}
+    for surface in ('Hard','Clay','Grass'):
+        s_players_stats[surface] = {}
+        s_avg_stats[surface] = stats_52((df['match_year'][0],df['match_month'][0]))
+        s_avg_stats[surface].update(start_date,(6.4,10,3.6,10))
+    s_match_52_stats = np.zeros([2,len(df),4])
+    s_avg_52_stats = np.zeros([len(df),4])
+
     w_l = ['w','l']
     for i, row in df.loc[start_ind:].iterrows():
-        # surface = row['surface']  
+        surface = row['surface']
         date = row['match_year'],row['match_month']
 
         avg_stats.set_month(date)
-        avg_52_stats[i] = np.sum(avg_stats.last_year,axis=0)       
+        avg_52_stats[i] = np.sum(avg_stats.last_year,axis=0)
         for k,label in enumerate(w_l):
             if row[label+'_name'] not in players_stats:
                 players_stats[row[label+'_name']] = stats_52(date)
@@ -330,28 +438,46 @@ def generate_52_stats(df,start_ind):
             players_stats[row[label+'_name']].set_month(date)
             match_52_stats[k][i] = np.sum(players_stats[row[label+'_name']].last_year,axis=0) # all four stats per player
             # update serving stats if not null
-            if row[label+'_swon']==row[label+'_swon'] and row[label+'_svpt']==row[label+'_svpt']:    
+            if row[label+'_swon']==row[label+'_swon'] and row[label+'_svpt']==row[label+'_svpt']:
                 match_stats = (row[label+'_swon'],row[label+'_svpt'],row[w_l[1-k]+'_svpt']-\
                                 row[w_l[1-k]+'_swon'],row[w_l[1-k]+'_svpt'])
                 players_stats[row[label+'_name']].update(date,match_stats)
                 avg_stats.update(date,match_stats)
 
-    # sf_ tags are optional
+        # repeat above process for surface-specific stats
+        if surface not in ('Hard','Clay','Grass'):
+            continue
+        s_avg_stats[surface].set_month(date)
+        s_avg_52_stats[i] = np.sum(s_avg_stats[surface].last_year,axis=0)
+        for k,label in enumerate(w_l):
+            if row[label+'_name'] not in s_players_stats[surface]:
+                s_players_stats[surface][row[label+'_name']] = stats_52(date)
+
+            # store serving stats prior to match, from current month
+            s_players_stats[surface][row[label+'_name']].set_month(date)
+            s_match_52_stats[k][i] = np.sum(s_players_stats[surface][row[label+'_name']].last_year,axis=0)
+            # update serving stats if not null
+            if row[label+'_swon']==row[label+'_swon'] and row[label+'_svpt']==row[label+'_svpt']:
+                match_stats = (row[label+'_swon'],row[label+'_svpt'],row[w_l[1-k]+'_svpt']-\
+                                row[w_l[1-k]+'_swon'],row[w_l[1-k]+'_svpt'])
+                s_players_stats[surface][row[label+'_name']].update(date,match_stats)
+                s_avg_stats[surface].update(date,match_stats)
+
     for k,label in enumerate(w_l):
         df[label+'_52_swon'] = match_52_stats[k][:,0]
         df[label+'_52_svpt'] = match_52_stats[k][:,1]
         df[label+'_52_rwon'] = match_52_stats[k][:,2]
         df[label+'_52_rpt'] = match_52_stats[k][:,3]
-        # df[label+'_sf_52_swon'] = s_match_52_stats[k][:,0]
-        # df[label+'_sf_52_svpt'] = s_match_52_stats[k][:,1]
-        # df[label+'_sf_52_rwon'] = s_match_52_stats[k][:,2]
-        # df[label+'_sf_52_rpt'] = s_match_52_stats[k][:,3]
+        df[label+'_sf_52_swon'] = s_match_52_stats[k][:,0]
+        df[label+'_sf_52_svpt'] = s_match_52_stats[k][:,1]
+        df[label+'_sf_52_rwon'] = s_match_52_stats[k][:,2]
+        df[label+'_sf_52_rpt'] = s_match_52_stats[k][:,3]
 
     with np.errstate(divide='ignore', invalid='ignore'):
         df['avg_52_s'] = np.divide(avg_52_stats[:,0],avg_52_stats[:,1])
         df['avg_52_r'] = np.divide(avg_52_stats[:,2],avg_52_stats[:,3])
-        # df['sf_avg_52_s'] = np.divide(s_avg_52_stats[:,0],s_avg_52_stats[:,1])
-        # df['sf_avg_52_r'] = np.divide(s_avg_52_stats[:,2],s_avg_52_stats[:,3])
+        df['sf_avg_52_s'] = np.divide(s_avg_52_stats[:,0],s_avg_52_stats[:,1])
+        df['sf_avg_52_r'] = np.divide(s_avg_52_stats[:,2],s_avg_52_stats[:,3])
     return df
 
 '''
@@ -364,8 +490,9 @@ def generate_EM_stats(df,cols):
         stat_history = np.concatenate([df['p0_'+col],df['p1_'+col]],axis=0)
         n = len(stat_history)/2
         group_var = np.var(stat_history)
-        sr_col = 'svpt' if '_s_' in col else 'rpt' 
-        num_points = np.concatenate([df['p0_52_'+sr_col],df['p1_52_'+sr_col]])
+        prefix = 'sf_52_' if 'sf' in col else '52_'
+        suffix = 'svpt' if '_s_' in col else 'rpt'
+        num_points = np.concatenate([df['p0_'+prefix+suffix],df['p1_'+prefix+suffix]])
         p_hat = np.mean(stat_history)
         sigma2_i = np.divide(p_hat*(1-p_hat),num_points,where=num_points>0)
         tau2_hat = np.nanvar(stat_history)
@@ -377,7 +504,6 @@ def generate_EM_stats(df,cols):
         df['p1_'+col+'_EM'] = df['p1_'+col]+B_i[n:]*(p_hat-df['p1_'+col])
         print col, p_hat
     return df # ok if p_hats don't add up because they're avg of averages
-
 
 '''
 Efron-Morris estimators for 52-week serve and return percentages
@@ -409,23 +535,23 @@ performs above average
 def generate_52_adj_stats(df,start_ind=0):
     players_stats = {}
     match_52_stats = np.zeros([2,len(df),2]) # 2x1 arrays for x_i, x_j's 12-month s/r performance
-    
+
     w_l = ['w','l']
     for i, row in df.loc[start_ind:].iterrows():
-        surface = row['surface']  
+        surface = row['surface']
         date = row['match_year'],row['match_month']
-        avg_52_s,avg_52_r = row['avg_52_s'],row['avg_52_r']
+        avg_52_s, avg_52_r = row['avg_52_s'],row['avg_52_r']
         match_stats = [[],[]]
 
         # add new players to the dictionary
         for k,label in enumerate(w_l):
             if row[label+'_name'] not in players_stats:
                 players_stats[row[label+'_name']] = adj_stats_52(date)
-        
+
         # store pre-match adj stats
         for k,label in enumerate(w_l):
             players_stats[row[label+'_name']].set_month(date)
-            
+
             # fill in player's adjusted stats prior to start of match
             match_52_stats[k][i] = players_stats[row[label+'_name']].adj_sr
             # update serving stats if not null
@@ -440,14 +566,147 @@ def generate_52_adj_stats(df,start_ind=0):
         for k,label in enumerate(w_l):
             if row[label+'_swon']==row[label+'_swon'] and row[label+'_svpt']==row[label+'_svpt']:
                 players_stats[row[label+'_name']].update(date,match_stats[k])
-            
+
     for k,label in enumerate(w_l):
         df[label+'_52_s_adj'] = match_52_stats[k][:,0]
         df[label+'_52_r_adj'] = match_52_stats[k][:,1]
     return df
 
+
 '''
-collect yearly tournament serve averages for 'f_av' 
+generate delta between two players relative to shared opponent
+delta_i^AB = (spw(A, C_i) - (1 - rpw(A, C_i))) - (spw(B, C_i) - (1 - rpw(B, C_i)))
+'''
+def generate_delta(p1_stats, p2_stats):
+    p1_s_pct, p1_r_pct = p1_stats[0]/float(p1_stats[1]), p1_stats[2]/float(p1_stats[3])
+    p2_s_pct, p2_r_pct = p2_stats[0]/float(p2_stats[1]), p2_stats[2]/float(p2_stats[3])
+    return (p1_s_pct - (1 - p1_r_pct)) - (p2_s_pct - (1 - p2_r_pct))
+
+'''
+return true if total service/return points both greater than zero
+'''
+def has_stats(last_year_stats):
+    return last_year_stats[1] > 0 and last_year_stats[3] > 0
+
+'''
+get opponents who have played a match in the past 12 months (more than 0 points)
+'''
+def get_opponents(player_d, player_name):
+    historical_opponents = player_d[player_name].history.keys()
+    return [opp for opp in historical_opponents if has_stats(player_d[player_name].history[opp])]
+
+'''
+compute serve/return parameters, given their common opponent history
+'''
+def generate_commop_params(player_d, player1, player2):
+    p1_opponents, p2_opponents = get_opponents(player_d, player1), get_opponents(player_d, player2)
+    common_opponents = np.intersect1d(p1_opponents, p2_opponents)
+    if len(common_opponents) == 0:
+        return [0]
+
+    match_deltas = np.zeros(len(common_opponents))
+    for i, comm_op in enumerate(common_opponents):
+        p1_match_stats = player_d[player1].history[comm_op]
+        p2_match_stats = player_d[player2].history[comm_op]
+        comm_op_delta = generate_delta(p1_match_stats, p2_match_stats)
+        match_deltas[i] = comm_op_delta
+        if np.isnan(comm_op_delta):
+            print 'nan here: ', p1_match_stats, p2_match_stats, comm_op
+
+    overall_delta = np.mean(match_deltas)
+    if np.isnan(overall_delta):
+        print 'nan, match_deltas: ', match_deltas
+    return match_deltas
+
+'''
+collect historical s/r common-opponent performance by player
+'''
+def generate_commop_stats(df, start_ind):
+    player_d = {}
+    match_52_stats = np.zeros([2,len(df), 2])
+    match_probs = np.zeros([len(df)])
+
+    w_l = ['w','l']
+    for i, row in df.loc[start_ind:].iterrows():
+        for k, label in enumerate(w_l):
+            opponent_name = row[w_l[1-k]+'_name']
+            if row[label+'_name'] not in player_d:
+                player_d[row[label+'_name']] = commop_stats()
+
+            if row[label+'_swon']==row[label+'_swon'] and row[label+'_svpt']==row[label+'_svpt']:
+                match_stats = (row[label+'_swon'],row[label+'_svpt'],row[w_l[1-k]+'_svpt']-\
+                                row[w_l[1-k]+'_swon'],row[w_l[1-k]+'_svpt'])
+                player_d[row[label+'_name']].update(match_stats, opponent_name)
+
+        # can compute common-opponent stats after current match stats inputted
+        # (since this won't affect common opponents)
+        if row['match_year'] >= COMMOP_START_YEAR: # start after 2010 since commop is most computationally intensive
+            match_deltas = generate_commop_params(player_d, row['w_name'], row['l_name'])
+            overall_delta = np.mean(match_deltas)
+            w_s_pct, w_r_pct = (.6 + overall_delta/2), (.4 + overall_delta/2)
+
+            match_52_stats[0][i] = [w_s_pct, w_r_pct]
+            match_52_stats[1][i] = [1 - w_r_pct, 1 - w_s_pct]
+
+            iterated_match_probs = [
+                np.mean([
+                    matchProb(.6 + match_delta, .4),
+                    matchProb(.6, .4 + match_delta)
+                ])
+                for match_delta in match_deltas
+            ]
+            match_probs[i] = np.mean(iterated_match_probs)
+
+    for k,label in enumerate(w_l):
+        df[label+'_commop_s_pct'] = match_52_stats[k][:,0]
+        df[label+'_commop_r_pct'] = match_52_stats[k][:,1]
+
+    df['w_commop_match_prob'] = match_probs
+    return df
+
+# '''
+# collect 12-month s/r common-opponent performance by player (TODO: get rid of start_ind as input and filter before
+# passing to this function)
+# '''
+# def generate_52_commop_stats(df, start_ind):
+#     player_d = {}
+#     start_date = (df['match_year'][start_ind], df['match_month'][start_ind])
+#     # array w/ 2x1 arrays for each player's 12-month serve/return performance
+#     match_52_stats = np.zeros([2,len(df), 2])
+
+#     w_l = ['w','l']
+#     for i, row in df.loc[start_ind:].iterrows():
+#         date = row['match_year'], row['match_month']
+
+#         for k, label in enumerate(w_l):
+#             opponent_name = row[w_l[1-k]+'_name']
+#             if row[label+'_name'] not in player_d:
+#                 player_d[row[label+'_name']] = commop_stats_52(date)
+
+#             # can update player objs before calculating params since players cannot share
+#             # each other as common opponents
+#             if row[label+'_swon']==row[label+'_swon'] and row[label+'_svpt']==row[label+'_svpt']:
+#                 match_stats = (row[label+'_swon'],row[label+'_svpt'],row[w_l[1-k]+'_svpt']-\
+#                                 row[w_l[1-k]+'_swon'],row[w_l[1-k]+'_svpt'])
+#                 player_d[row[label+'_name']].update(date, match_stats, opponent_name)
+
+#         # can compute common-opponent stats after current match stats inputted
+#         # (since this won't affect common opponents)
+#         w_s_pct, w_r_pct = generate_commop_params(player_d, row['w_name'], row['l_name'])
+
+#         match_52_stats[0][i] = [w_s_pct, w_r_pct]
+#         match_52_stats[1][i] = [1 - w_r_pct, 1 - w_s_pct]
+
+#     for k,label in enumerate(w_l):
+#         df[label+'_52_commop_s_pct'] = match_52_stats[k][:,0]
+#         df[label+'_52_commop_r_pct'] = match_52_stats[k][:,1]
+
+#     return df
+
+
+
+'''
+collect yearly tournament serve averages for 'f_av'
 in Barnette-Clark equation
 '''
 def generate_tny_stats(df,start_ind=0):
@@ -456,7 +715,7 @@ def generate_tny_stats(df,start_ind=0):
     for i, row in df.loc[start_ind:].iterrows():
         if row['tny_name']=='Davis Cup':
             continue
-        
+
         year,t_id = row['tny_id'].split('-')
         year = int(year)
         match_stats = (row['w_swon']+row['l_swon'],row['w_svpt']+row['l_svpt'])
@@ -467,11 +726,11 @@ def generate_tny_stats(df,start_ind=0):
                     swon,svpt = tny_stats[t_id].historical_avgs[year-1]
                     tny_52_stats[i] = swon/float(svpt)
             continue
-        # create new object if needed, then update           
+        # create new object if needed, then update
         elif t_id not in tny_stats:
             tny_stats[t_id] = tny_52(year)
         tny_52_stats[i] = tny_stats[t_id].update(year,match_stats)
-        
+
     df['tny_stats'] = tny_52_stats
     return df
 
@@ -513,4 +772,3 @@ def generate_elo_induced_s(df,col,start_ind=0):
     df['p0_s_kls_'+col] = induced_s[:,0]
     df['p1_s_kls_'+col] = induced_s[:,1]
     return df
-
