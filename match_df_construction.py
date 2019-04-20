@@ -1,7 +1,6 @@
 import os
 import sys
 from globals import *
-from helper_functions import *
 from data_functions import *
 
 sys.path.insert(0, '{}/sackmann'.format(os.getcwd()))
