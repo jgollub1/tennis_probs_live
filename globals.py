@@ -17,3 +17,4 @@ PBP_COLS = [
     'p0_swp','p0_sp','p1_swp','p1_sp',
     'server'
 ]
+EPSILON = .001

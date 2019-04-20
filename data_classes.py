@@ -90,7 +90,6 @@ class commop_stats_52():
     def time_diff(self, new_date, old_date):
         return 12*(new_date[0]-old_date[0])+(new_date[1]-old_date[1])
 
-    # TODO: update data for every single opponent, just the one being played (otherwise data )
     def update_player_stats(self, match_date, opponent_name):
         diff = self.time_diff(match_date, self.most_recent)
         if diff>=12:

@@ -12,7 +12,7 @@ import tennisTiebreakProbability
 from tennisMatchProbability import matchProb
 from data_classes import stats_52, adj_stats_52, commop_stats, tny_52
 from sklearn import linear_model
-from globals import COMMOP_START_YEAR
+from globals import COMMOP_START_YEAR, EPSILON
 
 pd.options.mode.chained_assignment = None
 
@@ -23,14 +23,14 @@ concatenate original match dataframes from years
 (start_y, end_y)
 '''
 def concat_data(start_y, end_y, tour):
-    atp_year_list = []
+    match_year_list = []
     for i in xrange(start_y, end_y+1):
-        f_name = "match_data/"+tour+"_matches_{0}.csv".format(i)
+        f_name = "match_data/{}_matches_{}.csv".format(tour, i)
         try:
-            atp_year_list.append(pd.read_csv(f_name))
+            match_year_list.append(pd.read_csv(f_name))
         except:
             print 'could not find file for year: ', i
-    return pd.concat(atp_year_list, ignore_index = True)
+    return pd.concat(match_year_list, ignore_index = True)
 
 '''
 clean up mispellings in datasets. specific to atp/wta tours
@@ -276,19 +276,14 @@ def finalize_df(df):
     df['match_prob_adj_kls'] = [matchProb(row['p0_s_adj_kls'],1-row['p1_s_adj_kls']) for i,row in df.iterrows()]
     df['match_prob_adj_kls_EM'] = [matchProb(row['p0_s_adj_kls_EM'],1-row['p1_s_adj_kls_EM']) for i,row in df.iterrows()]
     df['match_prob_commop_kls'] = [matchProb(row['p0_s_commop_kls'],1-row['p1_s_commop_kls']) for i,row in df.iterrows()]
-    # df['match_prob_commop'] = [matchProb(row['p0_commop_s_pct'],1-row['p1_commop_s_pct']) for i,row in df.iterrows()]
-    # TODO: use w_commop_match_prob
     df['match_prob_commop'] = [1 - df['w_commop_match_prob'][i] if df['winner'][i] else df['w_commop_match_prob'][i] for i in xrange(len(df))]
 
     # generate win probabilities from elo differences
     df['elo_prob'] = (1+10**(df['elo_diff']/-400.))**-1
-    # df['elo_prob_538'] = (1+10**(df['elo_diff_538']/-400.))**-1
     df['sf_elo_prob'] = [(1+10**(diff/-400.))**-1 for diff in df['sf_elo_diff']]
-    # df['sf_elo_prob_538'] = [(1+10**(diff/-400.))**-1 for diff in df['sf_elo_diff_538']]
 
     # elo-induced serve percentages
     df = generate_elo_induced_s(df, 'elo',start_ind=0)
-    # df = generate_elo_induced_s(df, 'logit_elo_538',start_ind=0)
     return df
 
 def get_start_ind(match_df, start_year):
@@ -664,46 +659,6 @@ def generate_commop_stats(df, start_ind):
     df['w_commop_match_prob'] = match_probs
     return df
 
-# '''
-# collect 12-month s/r common-opponent performance by player (TODO: get rid of start_ind as input and filter before
-# passing to this function)
-# '''
-# def generate_52_commop_stats(df, start_ind):
-#     player_d = {}
-#     start_date = (df['match_year'][start_ind], df['match_month'][start_ind])
-#     # array w/ 2x1 arrays for each player's 12-month serve/return performance
-#     match_52_stats = np.zeros([2,len(df), 2])
-
-#     w_l = ['w','l']
-#     for i, row in df.loc[start_ind:].iterrows():
-#         date = row['match_year'], row['match_month']
-
-#         for k, label in enumerate(w_l):
-#             opponent_name = row[w_l[1-k]+'_name']
-#             if row[label+'_name'] not in player_d:
-#                 player_d[row[label+'_name']] = commop_stats_52(date)
-
-#             # can update player objs before calculating params since players cannot share
-#             # each other as common opponents
-#             if row[label+'_swon']==row[label+'_swon'] and row[label+'_svpt']==row[label+'_svpt']:
-#                 match_stats = (row[label+'_swon'],row[label+'_svpt'],row[w_l[1-k]+'_svpt']-\
-#                                 row[w_l[1-k]+'_swon'],row[w_l[1-k]+'_svpt'])
-#                 player_d[row[label+'_name']].update(date, match_stats, opponent_name)
-
-#         # can compute common-opponent stats after current match stats inputted
-#         # (since this won't affect common opponents)
-#         w_s_pct, w_r_pct = generate_commop_params(player_d, row['w_name'], row['l_name'])
-
-#         match_52_stats[0][i] = [w_s_pct, w_r_pct]
-#         match_52_stats[1][i] = [1 - w_r_pct, 1 - w_s_pct]
-
-#     for k,label in enumerate(w_l):
-#         df[label+'_52_commop_s_pct'] = match_52_stats[k][:,0]
-#         df[label+'_52_commop_r_pct'] = match_52_stats[k][:,1]
-
-#     return df
-
-
 
 '''
 collect yearly tournament serve averages for 'f_av'
@@ -752,7 +707,7 @@ def elo_induced_s(prob,s_total):
     s0 = s_total/2
     current_prob = .5
     diff = s_total/4
-    while abs(current_prob-prob)>.001:
+    while abs(current_prob-prob) > EPSILON:
         if current_prob < prob:
             s0 += diff
         else:
