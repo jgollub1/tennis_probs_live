@@ -1,22 +1,21 @@
 import os
 import sys
-sys.path.insert(0, '{}/sackmann'.format(os.getcwd()))
+import re
+import datetime
 import numpy as np
 import pandas as pd
 import elo_538 as elo
-import re, datetime
+from data_classes import stats_52, adj_stats_52, commop_stats, tny_52
+from globals import COMMOP_START_YEAR, EPSILON
+
+pd.options.mode.chained_assignment = None
+sys.path.insert(0, '{}/sackmann'.format(os.getcwd()))
 import tennisGameProbability
 import tennisMatchProbability
 import tennisSetProbability
 import tennisTiebreakProbability
 from tennisMatchProbability import matchProb
-from data_classes import stats_52, adj_stats_52, commop_stats, tny_52
-from sklearn import linear_model
-from globals import COMMOP_START_YEAR, EPSILON
 
-pd.options.mode.chained_assignment = None
-
-# TO DO: add switches or global indicators for surface stats
 
 '''
 concatenate original match dataframes from years
@@ -687,17 +686,6 @@ def generate_tny_stats(df,start_ind=0):
         tny_52_stats[i] = tny_stats[t_id].update(year,match_stats)
 
     df['tny_stats'] = tny_52_stats
-    return df
-
-def generate_logit_probs(df,cols,col_name):
-    lm = linear_model.LogisticRegression(fit_intercept = True)
-    df_train = df[df['match_year'].isin([2011,2012,2013])]
-    df_train = df_train[df_train['winner'].isin([0,1])]
-    df_train['winner'] = df_train['winner'].astype(int)
-    lm.fit(df_train[cols].values.reshape([df_train.shape[0],len(cols)]),np.asarray(df_train['winner']))
-    print 'cols: ', cols
-    print 'lm coefficients: ', lm.coef_
-    df[col_name] = lm.predict_proba(df[cols].values.reshape([df.shape[0],len(cols)]))[:,0]
     return df
 
 '''
