@@ -82,31 +82,31 @@ class commop_stats():
 tracking object for common-opponent ratings
 stores past year of performance against opponents
 '''
-class commop_stats_52():
-    def __init__(self, date):
-        self.last_year = defaultdict(lambda: np.zeros([12, 4]))
-        self.most_recent = date
+# class commop_stats_52():
+#     def __init__(self, date):
+#         self.last_year = defaultdict(lambda: np.zeros([12, 4]))
+#         self.most_recent = date
 
-    def time_diff(self, new_date, old_date):
-        return 12*(new_date[0]-old_date[0])+(new_date[1]-old_date[1])
+#     def time_diff(self, new_date, old_date):
+#         return 12*(new_date[0]-old_date[0])+(new_date[1]-old_date[1])
 
-    def update_player_stats(self, match_date, opponent_name):
-        diff = self.time_diff(match_date, self.most_recent)
-        if diff>=12:
-            self.last_year[opponent_name] = np.zeros([12,4])
-        elif diff>0:
-            self.last_year[opponent_name][diff:] = self.last_year[opponent_name][:12-diff]
-            self.last_year[opponent_name][:diff] = 0
+#     def update_player_stats(self, match_date, opponent_name):
+#         diff = self.time_diff(match_date, self.most_recent)
+#         if diff>=12:
+#             self.last_year[opponent_name] = np.zeros([12,4])
+#         elif diff>0:
+#             self.last_year[opponent_name][diff:] = self.last_year[opponent_name][:12-diff]
+#             self.last_year[opponent_name][:diff] = 0
 
-    def update_player_histories(self, match_date, opponent_name):
-        for opp_name in np.union1d(opponent_name, self.last_year.keys()):
-            self.update_player_stats(match_date, opp_name)
+#     def update_player_histories(self, match_date, opponent_name):
+#         for opp_name in np.union1d(opponent_name, self.last_year.keys()):
+#             self.update_player_stats(match_date, opp_name)
 
-        self.most_recent = match_date
+#         self.most_recent = match_date
 
-    def update(self, match_date, match_stats, opponent_name):
-        self.update_player_histories(match_date, opponent_name)
-        self.last_year[opponent_name][0] = self.last_year[opponent_name][0]+match_stats
+#     def update(self, match_date, match_stats, opponent_name):
+#         self.update_player_histories(match_date, opponent_name)
+#         self.last_year[opponent_name][0] = self.last_year[opponent_name][0]+match_stats
 
 '''
 tracking object for yearly tournament averages

@@ -73,7 +73,6 @@ def validate_test_df(test_df):
 
 if __name__=='__main__':
     df = concat_data(START_YEAR_TEST, END_YEAR_TEST, TOUR)
-    df = format_match_df(df, TOUR, RET_STRINGS, ABD_STRINGS)
 
     test_df = pd.read_csv(MATCH_DF_TEST_PATH)
     test_df_active = pd.read_csv(CURRENT_DF_TEST_PATH)

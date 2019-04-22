@@ -1,21 +1,12 @@
-import os
-import sys
 import re
 import datetime
 import numpy as np
 import pandas as pd
-import elo_538 as elo
-from data_classes import stats_52, adj_stats_52, commop_stats, tny_52
+from tennis_util import elo, matchProb
+from data_classes import stats_52, adj_stats_52, tny_52, commop_stats
 from globals import COMMOP_START_YEAR, EPSILON
 
 pd.options.mode.chained_assignment = None
-sys.path.insert(0, '{}/sackmann'.format(os.getcwd()))
-import tennisGameProbability
-import tennisMatchProbability
-import tennisSetProbability
-import tennisTiebreakProbability
-from tennisMatchProbability import matchProb
-
 
 '''
 concatenate original match dataframes from years
@@ -24,12 +15,13 @@ concatenate original match dataframes from years
 def concat_data(start_y, end_y, tour):
     match_year_list = []
     for i in xrange(start_y, end_y+1):
-        f_name = "match_data/{}_matches_{}.csv".format(tour, i)
+        f_name = "match_data_formatted/{}_matches_{}.csv".format(tour, i)
         try:
             match_year_list.append(pd.read_csv(f_name))
         except:
             print 'could not find file for year: ', i
-    return pd.concat(match_year_list, ignore_index = True)
+    full_match_df = pd.concat(match_year_list, ignore_index = True)
+    return full_match_df.sort_values(by=['tny_date','tny_name','match_num'], ascending=True).reset_index(drop=True)
 
 '''
 clean up mispellings in datasets. specific to atp/wta tours
@@ -93,8 +85,8 @@ def format_match_df(df,tour,ret_strings=[],abd_strings=[]):
     df['score'] = ['ABN' if score.split(' ')[-1] in abd_strings else score for score in df['score']]
     ret_d = set(ret_strings)
     df = df.loc[[i for i in range(len(df)) if df['score'][i] not in ret_d]]
-    df = df.sort_values(by=['tny_date','tny_name','match_num'], ascending=True).reset_index(drop=True)
-    return df
+    # df = df.sort_values(by=['tny_date','tny_name','match_num'], ascending=True)
+    return df.reset_index(drop=True)
 
 '''
 original dataset labels columns by 'w_'/'l_'
@@ -295,7 +287,6 @@ returns two dataframes
 '''
 def generate_dfs(tour, start_year, end_year, ret_strings, abd_strings, counts_538):
     match_df = concat_data(start_year, end_year, tour)
-    match_df = format_match_df(match_df, tour, ret_strings, abd_strings)
     start_ind = match_df[match_df['match_year']>=start_year-1].index[0]
     current_elo_ratings, match_df = generate_elo(match_df, counts_538)
     print 'generated elo on match dataset...'
@@ -318,7 +309,6 @@ returns two dataframes
 '''
 def generate_test_dfs(tour, start_year, end_year, ret_strings, abd_strings, counts_538):
     match_df = concat_data(start_year, end_year, tour)
-    match_df = format_match_df(match_df, tour, ret_strings, abd_strings)
     start_ind = match_df[match_df['match_year']>=start_year-1].index[0]
     current_elo_ratings, match_df = generate_elo(match_df, counts_538)
 

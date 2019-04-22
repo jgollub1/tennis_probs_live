@@ -7,6 +7,10 @@ sys.path.insert(0, '{}/sackmann'.format(os.getcwd()))
 
 # only need to run once, make sure to sort all matches in concat_data()
 def format_match_data():
+	for file_name in os.listdir('match_data'):
+		df = pd.read_csv('match_data/{}'.format(file_name))
+		formatted_df = format_match_df(df, TOUR, RET_STRINGS, ABD_STRINGS)
+		formatted_df.to_csv('match_data_formatted/{}'.format(file_name), index=False)
 	return
 
 def write_dataframe(df, prefix):
@@ -15,6 +19,8 @@ def write_dataframe(df, prefix):
 	print '{} constructed'.format(file_path)
 
 if __name__=='__main__':
+	format_match_data()
+
 	print 'main: ', os.getcwd()
 	current_year = int(DATE.split('_')[-1])
 	current_df, match_df = generate_dfs(TOUR, START_YEAR, current_year, RET_STRINGS, ABD_STRINGS, COUNTS_538)
