@@ -68,7 +68,7 @@ class Elo_Rater(object):
 
     def rate(self, rating, series, is_gs=False, counts=False):
         """Calculates new ratings by the game result series."""
-        k = self.calculate_k(rating,counts)*1.1 if is_gs else self.calculate_k(rating,counts)
+        k = self.calculate_k(rating, counts)*1.1 if is_gs else self.calculate_k(rating, counts)
         rating.value = float(rating.value) + k * self.adjust(rating, series)
         rating.times += 1
         return rating
@@ -81,4 +81,3 @@ class Elo_Rater(object):
         r1,r2 = rating1.value, rating2.value
         return (self.rate(rating1, [scores[0], r2],is_gs,counts),
                 self.rate(rating2, [scores[1], r1],is_gs,counts))
-
