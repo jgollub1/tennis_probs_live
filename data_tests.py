@@ -8,19 +8,19 @@ START_YEAR_TEST = 2012
 END_YEAR_TEST = 2015
 CURRENT_DF_TEST_PATH = 'test_data/test_df_current.csv'
 MATCH_DF_TEST_PATH = 'test_data/test_df_match.csv'
-TEST_COLUMNS_ELO = ['elo', 'hard_elo', 'clay_elo', 'grass_elo']
+TEST_COLUMNS_ELO = ['w_elo_538', 'l_elo_538', 'w_sf_elo_538', 'l_sf_elo_538']
 TEST_COLUMNS_52 = [
-    u'w_52_swon', u'w_52_svpt', u'w_52_rwon', u'w_52_rpt',
-    u'w_sf_52_swon', u'w_sf_52_svpt', u'w_sf_52_rwon', u'w_sf_52_rpt',
-    u'l_52_swon', u'l_52_svpt', u'l_52_rwon', u'l_52_rpt',
-    u'l_sf_52_swon', u'l_sf_52_svpt', u'l_sf_52_rwon', u'l_sf_52_rpt',
-    u'avg_52_s', u'avg_52_r'
+    'w_52_swon', 'w_52_svpt', 'w_52_rwon', 'w_52_rpt',
+    'w_sf_52_swon', 'w_sf_52_svpt', 'w_sf_52_rwon', 'w_sf_52_rpt',
+    'l_52_swon', 'l_52_svpt', 'l_52_rwon', 'l_52_rpt',
+    'l_sf_52_swon', 'l_sf_52_svpt', 'l_sf_52_rwon', 'l_sf_52_rpt',
+    'avg_52_s', 'avg_52_r'
 ]
 TEST_COLUMNS_52_ADJ = [
-    u'w_52_s_adj', u'w_52_r_adj', u'l_52_s_adj', u'l_52_r_adj'
+    'w_52_s_adj', 'w_52_r_adj', 'l_52_s_adj', 'l_52_r_adj'
 ]
 TEST_COLUMNS_COMMOP = [
-    u'w_commop_s_pct', u'w_commop_r_pct', u'l_commop_s_pct', u'l_commop_r_pct'
+    'w_commop_s_pct', 'w_commop_r_pct', 'l_commop_s_pct', 'l_commop_r_pct'
 ]
 
 def compare_cols(df, test_df, col_name):
@@ -33,10 +33,11 @@ def test_cols(df, test_df, cols):
     for col in tqdm(cols):
         compare_cols(df, test_df, col)
 
-def test_elo(df, test_df_active):
+# TODO: update tests to use match_df not active df
+def test_elo(df, test_df):
     print '### testing elo ###'
-    active_df, elo_df = generate_elo(df, COUNTS_538)
-    test_cols(active_df, test_df_active, TEST_COLUMNS_ELO)
+    elo_df = generate_elo(df, COUNTS_538)
+    test_cols(elo_df, test_df, TEST_COLUMNS_ELO)
     print '--- elo passed ---'
 
 def test_52_stats(df, test_df):
@@ -65,8 +66,8 @@ def test_commop_stats(df, test_df):
 #     test_cols(df, test_df, TEST_COLUMNS_COMMOP)
 #     print '--- EM stats passed ---'
 
-def validate_data_pipeline(df, test_df, test_df_active):
-    test_elo(df, test_df_active)
+def validate_data_pipeline(df, test_df):
+    test_elo(df, test_df)
 
     test_52_stats(df, test_df)
 
@@ -81,19 +82,14 @@ if __name__=='__main__':
     df = concat_data(START_YEAR_TEST, END_YEAR_TEST, TOUR)
 
     test_df = pd.read_csv(MATCH_DF_TEST_PATH)
-    test_df_active = pd.read_csv(CURRENT_DF_TEST_PATH)
 
     validate_test_df(test_df)
-    validate_data_pipeline(df, test_df, test_df_active)
+    validate_data_pipeline(df, test_df)
 
 
 # # only run this once
 # def build_test_df():
-#     current_df, match_df = generate_test_dfs(TOUR, 2012, 2015, RET_STRINGS, ABD_STRINGS, COUNTS_538)
-
-#     current_file_path = 'test_data/test_df_current.csv'
-#     current_df.to_csv(current_file_path, index=False)
-#     print '{} constructed '.format(current_file_path)
+#     match_df = generate_test_dfs(TOUR, 2012, 2015, RET_STRINGS, ABD_STRINGS, COUNTS_538)
 
 #     match_file_path = 'test_data/test_df_match.csv'
 #     match_df.to_csv(match_file_path, index=False)

@@ -88,7 +88,7 @@ def format_match_df(df,tour,ret_strings=[],abd_strings=[]):
     abd_d, ret_d = set(abd_strings), set(ret_strings)
     df['score'] = ['ABN' if score.split(' ')[-1] in abd_d else score for score in df['score']]
     df['score'] = ['RET' if score in ret_d else score for score in df['score']]
-    return df.loc[df['score'] == 'RET'].reset_index(drop=True)
+    return df.loc[(df['score'] != 'ABN') & (df['score'] != 'RET')].reset_index(drop=True)
 
 '''
 original dataset labels columns by 'w_'/'l_'
@@ -286,33 +286,30 @@ def finalize_df(df):
     df['sf_elo_prob'] = [(1+10**(diff/-400.))**-1 for diff in df['sf_elo_diff']]
 
     # elo-induced serve percentages
-    df = generate_elo_induced_s(df, 'elo',start_ind=0)
+    df = generate_bc_stats_elo_induced(df, 'elo',start_ind=0)
     return df
 
 def get_start_ind(match_df, start_year):
     return match_df[match_df['match_year']>=start_year-1].index[0]
 
 '''
-returns two dataframes
-1) contains up-to-date player stats through date of most recent match
-2) contains every match with elo/serve/return/etc stats
+returns dataframe with up-to-date player stats through date of most recent match
 '''
-def generate_dfs(tour, start_year, end_year, ret_strings, abd_strings, counts_538):
+def generate_df(tour, start_year, end_year, ret_strings, abd_strings, counts_538):
+    print 'start_year: ', start_year
+    print 'end_year: ', end_year
     match_df = concat_data(start_year, end_year, tour)
+    print 'match_df.shape before: ', match_df.shape
     start_ind = match_df[match_df['match_year']>=start_year-1].index[0]
-    current_elo_ratings, match_df = generate_elo(match_df, counts_538)
+    print 'match_df.shape: ', match_df.shape
+    match_df = generate_elo(match_df, counts_538)
     print 'generated elo on match dataset...'
 
     match_df = generate_stats(match_df, start_ind) # 52, adj, tny, etc.
     match_df = finalize_df(match_df)
     match_df = match_df.reset_index(drop=True)
     print 'finalized df...'
-
-    current_52_stats = get_current_52_stats(match_df, start_ind=0)
-    current_df = current_elo_ratings.merge(current_52_stats, on='player')
-    current_df = generate_em_stats_current(current_df, cols=['52_s_pct','52_r_pct'])
-    return current_df, match_df
-
+    return match_df
 
 '''
 returns two dataframes
@@ -322,7 +319,7 @@ returns two dataframes
 def generate_test_dfs(tour, start_year, end_year, ret_strings, abd_strings, counts_538):
     match_df = concat_data(start_year, end_year, tour)
     start_ind = match_df[match_df['match_year']>=start_year-1].index[0]
-    current_elo_ratings, match_df = generate_elo(match_df, counts_538)
+    match_df = generate_elo(match_df, counts_538)
 
     match_df = generate_52_stats(match_df, start_ind)
     match_df = generate_52_adj_stats(match_df, start_ind)
@@ -330,74 +327,55 @@ def generate_test_dfs(tour, start_year, end_year, ret_strings, abd_strings, coun
     match_df = generate_commop_stats(match_df, start_ind)
     # TODO: add generate_em_stats() right here
 
-    return current_elo_ratings, match_df
+    return match_df
 
 '''
-iterate through every historical match, providing
-up-to-date elo ratings for each player prior to match
-generates two dataframes
-1) match dataframe with each player's pre-match elo ratings
-2) player dataframe with each player's current elo ratings
-   (through input df's most recent match)
-** considers surface ratings as well
+receives n x 2 array with columns 'w_name', 'l_name', 'is_gs'
 '''
-def generate_elo(df, counts_538):
-    players_list = np.union1d(df.w_name, df.l_name)
-    player_count = len(players_list)
-    initial_elos = [elo.Rating() for __ in range(player_count)]
-    players_elo = dict(zip(players_list, initial_elos))
-    sf_elo = {}
-    for sf in ('Hard','Clay','Grass'):
-        initial_elos = [elo.Rating() for __ in range(player_count)]
-        sf_elo[sf] = dict(zip(players_list, initial_elos))
+def generate_elo_columns(arr, counts_538):
+    players_set = np.unique(arr)
+    players_elo = dict(zip(
+        players_set,
+        [elo.Rating() for __ in range(len(players_set))]
+    )) # can use default dict here?
 
-    elo_1s, elo_2s = [],[]
-    sf_elo_1s, sf_elo_2s = [],[]
+    match_elos = np.zeros([arr.shape[0], 2])
     elo_obj = elo.Elo_Rater()
 
-    current_month = df['match_month'][0]
-    active_players = {current_month: set([])} # active in past twelve months
-
     # update player elo from every recorded match
-    for i, row in df.iterrows():
-        if row['match_month'] != current_month:
-            current_month = row['match_month']
-            active_players[current_month] = set([])
+    for i in range(arr.shape[0]):
+        w_name, l_name = arr[i][:2]
+        match_elos[i] = players_elo[w_name].value, players_elo[l_name].value
+        elo_obj.rate_1vs1(players_elo[w_name], players_elo[l_name], arr[i][2], counts_538)
 
-        sf,is_gs = row['surface'],row['is_gs']
-        w_name, l_name = row['w_name'], row['l_name']
-        w_elo,l_elo = players_elo[w_name],players_elo[l_name]
-        active_players[current_month].add(w_name) # track current players
-        active_players[current_month].add(l_name)
-        elo_1s.append(w_elo.value)
-        elo_2s.append(l_elo.value)
-        elo_obj.rate_1vs1(w_elo,l_elo,is_gs,counts_538)
+    return match_elos[:,0], match_elos[:,1]
 
-        if sf in ('Hard','Clay','Grass'):
-            w_sf_elo,l_sf_elo = sf_elo[sf][w_name],sf_elo[sf][l_name]
-            sf_elo_1s.append(w_sf_elo.value)
-            sf_elo_2s.append(l_sf_elo.value)
-            elo_obj.rate_1vs1(w_sf_elo,l_sf_elo,is_gs,counts_538)
-        else:
-            sf_elo_1s.append(w_elo.value)
-            sf_elo_2s.append(l_elo.value)
+def generate_surface_elo_columns(df, surfaces, counts_538):
+    df['w_sf_elo_538'], df['l_sf_elo_538'] = df['w_elo_538'], df['l_elo_538']
+    for surface in surfaces:
+        surface_df = df[df['surface'] == surface]
+        w_elo_columns, l_elo_columns = generate_elo_columns(np.array(surface_df[['w_name', 'l_name', 'is_gs']]), True)
+        df.loc[df['surface'] == surface, 'w_sf_elo_538'] = w_elo_columns
+        df.loc[df['surface'] == surface, 'l_sf_elo_538'] = l_elo_columns
 
-    players = active_players.values()
-    players = list(set.union(*players))
-    active_players_elo = [[players_elo[player].value] for player in players]
-    active_players_elo = dict(zip(players, active_players_elo))
+    return df['w_sf_elo_538'], df['l_sf_elo_538']
 
-    for sf in ('Hard','Clay','Grass'):
-        for player in players:
-            active_players_elo[player] += [sf_elo[sf][player].value]
-    active_df = pd.DataFrame([key]+val for key,val in active_players_elo.iteritems())
-    active_df.columns = ['player', 'elo', 'hard_elo', 'clay_elo', 'grass_elo']
-    active_df = active_df.sort_values(by=['elo'], ascending=False)
+'''
+return match dataframe with each player's pre-match elo ratings
+'''
+def generate_elo(df, counts_538=True):
+    df['w_elo_538'], df['l_elo_538'] = generate_elo_columns(np.array(df[['w_name', 'l_name', 'is_gs']]), True)
+    df['w_sf_elo_538'], df['l_sf_elo_538'] = generate_surface_elo_columns(df, ['Hard', 'Clay', 'Grass'], counts_538)
+    return df
 
-    tag = '_538' if counts_538 else ''
-    df['w_elo'+tag], df['l_elo'+tag] = elo_1s, elo_2s
-    df['w_sf_elo'+tag], df['l_sf_elo'+tag] = sf_elo_1s, sf_elo_2s
-    return active_df, df
+    # df['w_sf_elo_538'], df['l_sf_elo_538'] = df['w_elo_538'], df['l_elo_538']
+    # for surface in ['Hard', 'Clay', 'Grass']:
+    #     surface_df = df[df['surface'] == surface]
+    #     w_elo_columns, l_elo_columns = generate_elo_columns(np.array(surface_df[['w_name', 'l_name', 'is_gs']]), True)
+    #     df.loc[df['surface'] == surface, 'w_sf_elo_538'] = w_elo_columns
+    #     df.loc[df['surface'] == surface, 'l_sf_elo_538'] = l_elo_columns
+
+    # return df
 
 '''
 replace nan values with overall average array value
@@ -725,7 +703,7 @@ def elo_induced_s(prob,s_total):
 '''
 import to set s_total with JS-normalized percentages
 '''
-def generate_elo_induced_s(df,col,start_ind=0):
+def generate_bc_stats_elo_induced(df,col,start_ind=0):
     df['s_total'] = df['p0_s_kls_EM'] + df['p1_s_kls_EM']
     induced_s = np.zeros([len(df),2])
     for i, row in df.loc[start_ind:].iterrows():

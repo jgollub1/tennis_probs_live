@@ -22,8 +22,8 @@ def write_dataframe(df, prefix):
 if __name__=='__main__':
 	format_match_data()
 
-	current_df, match_df = generate_dfs(TOUR, START_YEAR, CURRENT_YEAR, RET_STRINGS, ABD_STRINGS, COUNTS_538)
+	match_df = generate_df(TOUR, START_YEAR, CURRENT_YEAR, RET_STRINGS, ABD_STRINGS, COUNTS_538)
 
-	write_dataframe(current_df, 'current_match')
+	# write_dataframe(current_df, 'current_match')
 
 	write_dataframe(match_df, 'match')
