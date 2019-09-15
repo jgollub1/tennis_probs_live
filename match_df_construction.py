@@ -3,7 +3,7 @@ import sys
 from globals import *
 from data_functions import *
 
-sys.path.insert(0, '{}/sackmann'.format(os.getcwd()))
+sys.path.insert(0, '{}/sackmann'.format(os.path.dirname(os.path.abspath(__file__))))
 
 # only need to run once, make sure to sort all matches in concat_data()
 def format_match_data():

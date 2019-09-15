@@ -1,7 +1,7 @@
 import os
 import sys
 
-sys.path.insert(0, '{}/sackmann'.format(os.getcwd()))
+sys.path.insert(0, '{}/sackmann'.format(os.path.dirname(os.path.abspath(__file__))))
 
 import re
 import datetime
@@ -25,7 +25,7 @@ def concat_data(start_y, end_y, tour):
         try:
             match_year_list.append(pd.read_csv(f_name))
         except:
-            print 'could not find file for year: ', i
+            print('could not find file for year: ', i)
     full_match_df = pd.concat(match_year_list, ignore_index = True)
     return full_match_df.sort_values(by=['tny_date','tny_name','match_num'], ascending=True).reset_index(drop=True)
 
@@ -186,16 +186,16 @@ as well as variations (adjusted, EM-normalized)
 '''
 def generate_stats(df, start_ind):
     df = generate_52_stats(df,start_ind)
-    print 'generated 52 stats...'
+    print('generated 52 stats...')
 
     df = generate_52_adj_stats(df,start_ind)
-    print 'generated 52 adj stats...'
+    print('generated 52 adj stats...')
 
     df = generate_tny_stats(df,start_ind)
-    print 'generated tny stats...'
+    print('generated tny stats...')
 
     df = generate_commop_stats(df, start_ind)
-    print 'generated commop stats...'
+    print('generated commop stats...')
 
     cols = ['_name','_elo_538','_sf_elo_538', #'_elo','_sf_elo'
         '_swon', '_svpt', '_rwon', '_rpt',
@@ -296,19 +296,19 @@ def get_start_ind(match_df, start_year):
 returns dataframe with up-to-date player stats through date of most recent match
 '''
 def generate_df(tour, start_year, end_year, ret_strings, abd_strings, counts_538):
-    print 'start_year: ', start_year
-    print 'end_year: ', end_year
+    print('start_year: ', start_year)
+    print('end_year: ', end_year)
     match_df = concat_data(start_year, end_year, tour)
-    print 'match_df.shape before: ', match_df.shape
+    print('match_df.shape before: ', match_df.shape)
     start_ind = match_df[match_df['match_year']>=start_year-1].index[0]
-    print 'match_df.shape: ', match_df.shape
+    print('match_df.shape: ', match_df.shape)
     match_df = generate_elo(match_df, counts_538)
-    print 'generated elo on match dataset...'
+    print('generated elo on match dataset...')
 
     match_df = generate_stats(match_df, start_ind) # 52, adj, tny, etc.
     match_df = finalize_df(match_df)
     match_df = match_df.reset_index(drop=True)
-    print 'finalized df...'
+    print('finalized df...')
     return match_df
 
 '''
@@ -484,7 +484,7 @@ def generate_em_stats(df,cols):
         stat_history[stat_history!=stat_history] = p_hat
         df['p0_' + col + '_EM'] = df['p0_' + col]+B_i[:n] * (p_hat - df['p0_' + col])
         df['p1_' + col + '_EM'] = df['p1_' + col]+B_i[n:] * (p_hat - df['p1_' + col])
-        print col, p_hat
+        print(col, p_hat)
     return df # ok if p_hats don't add up because they're avg of averages
 
 '''
@@ -503,7 +503,7 @@ def generate_em_stats_current(df,cols):
 
         stat_history[stat_history!=stat_history] = p_hat
         df[col+'_EM'] = df[col]+B_i*(p_hat-df[col])
-        print col, p_hat
+        print(col, p_hat)
     return df # ok if p_hats don't add up because they're avg of averages
 
 
@@ -602,11 +602,11 @@ def generate_commop_params(player_d, player1, player2):
         comm_op_delta = generate_delta(p1_match_stats, p2_match_stats)
         match_deltas[i] = comm_op_delta
         if np.isnan(comm_op_delta):
-            print 'nan here: ', p1_match_stats, p2_match_stats, comm_op
+            print('nan here: ', p1_match_stats, p2_match_stats, comm_op)
 
     overall_delta = np.mean(match_deltas)
     if np.isnan(overall_delta):
-        print 'nan, match_deltas: ', match_deltas
+        print('nan, match_deltas: ', match_deltas)
     return match_deltas
 
 '''
