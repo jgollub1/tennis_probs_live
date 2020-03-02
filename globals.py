@@ -3,7 +3,7 @@ from datetime import timedelta, datetime as dt
 DATE = (dt.now() + timedelta(days=2)).strftime(('%m_%d_%Y'))
 CURRENT_YEAR = int(DATE.split('_')[-1])
 TOUR = 'atp'
-START_YEAR = 1968
+START_YEAR = 2000 # for comparison against other dataset
 COMMOP_START_YEAR = 2010
 RET_STRINGS = (
     'ABN', 'DEF', 'In Progress', 'RET', 'W/O', ' RET', ' W/O', 'nan', 'walkover'

@@ -1,21 +1,21 @@
-## calculate the probability of server winning a single game, 
+## calculate the probability of server winning a single game,
 ## given p(winning single point) and current point score
- 
+
 ## some results and commentary here:
 ## http://summerofjeff.wordpress.com/2010/12/03/single-game-win-expectancy-tables/
- 
+
 def fact(x):
     if x in [0, 1]:  return 1
     r = 1
     for a in range(1, (x+1)):  r = r*a
     return r
- 
+
 def ch(a, b):
     return fact(a)/(fact(b)*fact(a-b))
- 
+
 def gameOutcome(s, a, b):
     return ch((a+b), a)*(s**a)*((1-s)**b)*s
- 
+
 def gameProb(s, v=0, w=0):
     ## function calculates the probability of server winning
     ## a single game, given p(winning any given point) [s],

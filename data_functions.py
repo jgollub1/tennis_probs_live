@@ -10,6 +10,7 @@ import pandas as pd
 import elo_538 as elo
 from tennisMatchProbability import matchProb
 from data_classes import stats_52, adj_stats_52, tny_52, commop_stats
+from collections import defaultdict
 from globals import COMMOP_START_YEAR, EPSILON
 
 pd.options.mode.chained_assignment = None
@@ -361,6 +362,34 @@ def generate_surface_elo_columns(df, surfaces, counts_538):
     return df['w_sf_elo_538'], df['l_sf_elo_538']
 
 '''
+receives n x 4 array with columns 'w_name', 'l_name', 'is_gs', 'Date'
+'''
+def generateEloColumnsWithHistory(arr, counts_538):
+    playerEloHistory = defaultdict(list)
+    players_set = np.unique(arr[:, :2])
+    players_elo = dict(zip(
+        players_set,
+        [elo.Rating() for __ in range(len(players_set))]
+    )) # can use default dict here?
+
+    match_elos = np.zeros([arr.shape[0], 2])
+    elo_obj = elo.Elo_Rater()
+
+    # update player elo from every recorded match
+    for i in range(arr.shape[0]):
+        w_name, l_name = arr[i][:2]
+        isGrandSlam = arr[i][2]
+        date = datetime.datetime.strptime(arr[i][3], '%Y-%m-%d')
+
+        match_elos[i] = players_elo[w_name].value, players_elo[l_name].value
+        elo_obj.rate_1vs1(players_elo[w_name], players_elo[l_name], 0, counts_538)
+
+        playerEloHistory[w_name].append({ 'date': date, 'newElo': players_elo[w_name].value, 'won': 1 })
+        playerEloHistory[l_name].append({ 'date': date, 'newElo': players_elo[l_name].value, 'won': 0 })
+
+    return match_elos[:,0], match_elos[:,1], playerEloHistory, players_elo
+
+'''
 return match dataframe with each player's pre-match elo ratings
 '''
 def generate_elo(df, counts_538=True):
@@ -473,6 +502,7 @@ Feed any existing col where ['p0_'+col, 'p1_'+col] within df.columns
 def generate_em_stats(df,cols):
     for col in cols:
         stat_history = np.concatenate([df['p0_'+col],df['p1_'+col]],axis=0)
+        n = len(stat_history)/2
         prefix = 'sf_52_' if 'sf' in col else '52_'
         suffix = 'svpt' if '_s_' in col else 'rpt'
         num_points = np.concatenate([df['p0_'+prefix+suffix],df['p1_'+prefix+suffix]])

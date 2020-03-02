@@ -37,6 +37,7 @@ def test_cols(df, test_df, cols):
 def test_elo(df, test_df):
     print '### testing elo ###'
     elo_df = generate_elo(df, COUNTS_538)
+    print 'generated: ', elo_df.shape
     test_cols(elo_df, test_df, TEST_COLUMNS_ELO)
     print '--- elo passed ---'
 
