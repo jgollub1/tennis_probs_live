@@ -24,7 +24,7 @@ LOSS = 0.
 
 
 class Rating(object):
-    def __init__(self, value=1500,times=1):
+    def __init__(self, value=1500,times=0):
         self.value = value
         self.times = times
 
